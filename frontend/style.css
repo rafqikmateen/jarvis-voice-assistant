@@ -15,9 +15,36 @@ body {
     align-items: center;
 }
 
+/* Layers: globe canvas (1) under the HUD, tasks, report and control bar (10); portfolio popup (20) on top.
+   #app spans the screen but lets pointer events through to the globe; its interactive children opt back in. */
+#globe {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: grab;
+}
+#globe[hidden] { display: none; }
+#globe.hover { cursor: pointer; }
+#globe.drag { cursor: grabbing; }
+
 #app {
+    position: relative;
+    z-index: 10;
+    pointer-events: none;
     text-align: center;
     width: 100%;
+}
+
+#orb-container,
+#transcript,
+#sources,
+#model-badge {
+    pointer-events: auto;
 }
 
 /* --- Arc-reactor HUD (inline SVG + CSS only) ---
@@ -200,7 +227,7 @@ body {
     max-height: 50vh;
     overflow-y: auto;
     text-align: left;
-    z-index: 2;                          /* stays above the HUD glow */
+    z-index: 10;                         /* floats above the globe */
     padding: 8px 10px;
     background: rgba(10, 10, 15, 0.85);
     border-radius: 6px;
@@ -212,7 +239,7 @@ body {
     left: 50%;
     bottom: 20px;
     transform: translateX(-50%);
-    z-index: 3;
+    z-index: 10;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -329,7 +356,7 @@ body {
     width: min(520px, 38vw);
     display: flex;
     flex-direction: column;
-    z-index: 2;
+    z-index: 10;
     background: #0a0f16;
     border: 1px solid #1a3a5c;
     border-radius: 6px;
@@ -386,3 +413,81 @@ body {
     font-size: 13px;
     margin-bottom: 6px;
 }
+
+#hint {
+    position: fixed;
+    bottom: 76px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    text-align: center;
+    color: #4b5a6b;
+    font-size: 12px;
+    pointer-events: none;
+}
+
+/* Brokerage portfolio popup over the globe */
+#broker-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(3, 6, 10, 0.6);
+}
+#broker-popup[hidden] { display: none; }
+
+#broker-card {
+    display: flex;
+    flex-direction: column;
+    width: min(620px, 94vw);
+    height: min(560px, 80vh);
+    overflow: hidden;
+    background: #0a0f16;
+    border: 1px solid #1a3a5c;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(39, 217, 255, 0.15);
+}
+
+#broker-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #0d1b2a;
+    color: #4a9eff;
+    font-size: 14px;
+}
+
+#broker-close {
+    background: none;
+    border: none;
+    color: #4a9eff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#broker-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+#broker-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #0a0f16;
+}
+
+#broker-msg {
+    margin: auto;
+    padding: 20px;
+    text-align: center;
+    color: #7fb8e6;
+    font-size: 14px;
+}
+#broker-msg.err { color: #ff6b6b; }

@@ -427,8 +427,12 @@ cdpToggle.addEventListener('click', async () => {
     }
 });
 
-// Monitor: jump to the graph view.
-layoutToggle.addEventListener('click', () => { location.href = '/graph'; });
+// Monitor: show or hide the background globe.
+layoutToggle.addEventListener('click', () => {
+    const globe = document.getElementById('globe');
+    globe.hidden = !globe.hidden;
+    layoutToggle.setAttribute('aria-pressed', String(globe.hidden));
+});
 
 // Bell: flashes and counts whenever a reply or report finishes; clicking clears it.
 function ringBell() {

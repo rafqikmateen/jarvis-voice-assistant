@@ -232,9 +232,12 @@ def get_weather_sync():
         return None
 
 
+HIDE_TASKS = True    # True: Jarvis shows and reports 0 tasks; Tasks.md itself is never touched
+
+
 def get_tasks_sync():
     """Read available tasks (unchecked '- [ ]' lines) from Tasks.md (sync)."""
-    if not TASKS_FILE:
+    if HIDE_TASKS or not TASKS_FILE:
         return []
     try:
         tasks_path = os.path.join(TASKS_FILE, "Tasks.md")
@@ -1632,7 +1635,6 @@ async def serve_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "index.html"))
 
 
-GRAPH_PAGE = os.path.join(os.path.dirname(__file__), "frontend", "graph.html")
 # Placeholder structure; lat/lon only place a node on the globe. Brokerage nodes are the clickable ones.
 GRAPH_DATA = {
     "nodes": [
@@ -1648,11 +1650,6 @@ GRAPH_DATA = {
     ],
 }
 GRAPH_QUERY_TIMEFRAME = "today"
-
-
-@app.get("/graph")
-async def serve_graph():
-    return FileResponse(GRAPH_PAGE)
 
 
 @app.get("/graph/data")

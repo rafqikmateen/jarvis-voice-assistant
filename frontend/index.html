@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <canvas id="globe"></canvas>
     <div id="app">
         <div id="orb-container">
             <div id="orb" class="offline">
@@ -72,7 +73,7 @@
         <button id="cdp-toggle" class="ctl" type="button" title="Check Chrome debug port 9222" aria-label="Check Chrome debug port 9222">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8"/></svg>
         </button>
-        <button id="layout-toggle" class="ctl" type="button" title="Open graph view" aria-label="Open graph view">
+        <button id="layout-toggle" class="ctl" type="button" title="Show or hide the globe" aria-label="Show or hide the globe">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
         </button>
         <button id="bell" class="ctl" type="button" title="Notifications" aria-label="Notifications">
@@ -87,6 +88,220 @@
             <span id="mic-label">Mic on</span>
         </button>
     </form>
+    <div id="hint">Drag the globe to rotate &middot; click a yellow node for its portfolio</div>
+    <div id="broker-popup" hidden>
+        <div id="broker-card">
+            <div id="broker-bar">
+                <span id="broker-title">Portfolio</span>
+                <button id="broker-close" type="button" aria-label="Close" title="Close">&times;</button>
+            </div>
+            <div id="broker-body"></div>
+        </div>
+    </div>
+    <script>
+    // Background globe: wireframe sphere with the Northbean hub and clickable brokerage nodes.
+    (() => {
+        // Report HTML is cleaned server-side and shown only in an iframe with an empty sandbox and an inline-styles-only CSP.
+        const REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'";
+        const REPORT_BASE_CSS = 'html,body{margin:0;background:#0a0f16;color:#cfe3f5;font:13px/1.45 Segoe UI,Arial,sans-serif}'
+            + 'body{padding:10px}table{border-collapse:collapse;width:100%}'
+            + 'th,td{border:1px solid #1a3a5c;padding:4px 8px;text-align:left}th{background:#0d1b2a;color:#4a9eff}'
+            + 'h1,h2,h3,h4{color:#4a9eff;margin:12px 0 6px}hr{border:0;border-top:1px solid #1a3a5c}'
+            + 'pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.45 Consolas,monospace}';
+
+        const canvas = document.getElementById('globe');
+        const ctx = canvas.getContext('2d');
+        const popup = document.getElementById('broker-popup');
+        const popupTitle = document.getElementById('broker-title');
+        const popupBody = document.getElementById('broker-body');
+        let W = 0, H = 0, R = 0, dpr = 1;
+        let nodes = [], links = [], byId = {};
+        let yaw = 0, pitch = -0.35;
+        let dragging = false, lastX = 0, lastY = 0, moved = 0;
+        let hovered = null, busy = false;
+        const AUTO_SPIN = 0.0025;      // radians per frame
+
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W * dpr; canvas.height = H * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            R = Math.min(W, H) * 0.4;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Rotate a unit-sphere point by yaw (around Y) then pitch (around X), and project it.
+        function project(x, y, z, scale) {
+            const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+            const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+            const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+            const persp = 1 / (1 - z2 * 0.25);
+            return { x: W / 2 + x1 * scale * persp, y: H / 2 - y2 * scale * persp, z: z2, p: persp };
+        }
+        function spherePoint(latDeg, lonDeg) {
+            const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180;
+            return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)];
+        }
+
+        function drawPolyline(points, color, alphaFront, alphaBack) {
+            for (let i = 1; i < points.length; i++) {
+                const a = points[i - 1], b = points[i];
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = (a.z + b.z) / 2 >= 0 ? alphaFront : alphaBack;
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            }
+        }
+
+        function drawWireframe() {
+            ctx.lineWidth = 1;
+            ctx.shadowColor = '#27d9ff'; ctx.shadowBlur = 6;
+            for (let lat = -60; lat <= 60; lat += 30) {
+                const pts = [];
+                for (let lon = 0; lon <= 360; lon += 6) pts.push(project(...spherePoint(lat, lon), R));
+                drawPolyline(pts, '#27d9ff', 0.55, 0.12);
+            }
+            for (let lon = 0; lon < 360; lon += 30) {
+                const pts = [];
+                for (let lat = -90; lat <= 90; lat += 6) pts.push(project(...spherePoint(lat, lon), R));
+                drawPolyline(pts, '#27d9ff', 0.55, 0.12);
+            }
+            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        }
+
+        function glowDot(x, y, r, color, glow) {
+            const g = ctx.createRadialGradient(x, y, 0, x, y, glow);
+            g.addColorStop(0, color); g.addColorStop(0.35, color + '66'); g.addColorStop(1, color + '00');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(x, y, glow, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        }
+
+        function frame(t) {
+            requestAnimationFrame(frame);
+            if (canvas.hidden) return;
+            if (!dragging && !hovered) yaw += AUTO_SPIN;
+            ctx.clearRect(0, 0, W, H);
+
+            const hub = project(0, 0, 0, R);
+            for (const n of nodes) {
+                if (n.type === 'hub') Object.assign(n, hub, { r: 16 });
+                else Object.assign(n, project(...spherePoint(n.lat, n.lon), R), { r: 11 });
+            }
+
+            drawWireframe();
+
+            // Links: hub to each child, behind-the-globe links are dimmer.
+            ctx.lineWidth = 1.5;
+            for (const l of links) {
+                const a = byId[l.source], b = byId[l.target];
+                if (!a || !b) continue;
+                ctx.strokeStyle = '#ffd24a';
+                ctx.globalAlpha = b.z >= 0 ? 0.8 : 0.25;
+                ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 8;
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            }
+            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+            // Nodes, far to near
+            const pulse = 1 + 0.12 * Math.sin(t / 400);
+            for (const n of [...nodes].sort((a, b) => a.z - b.z)) {
+                const back = n.type !== 'hub' && n.z < 0;
+                ctx.globalAlpha = back ? 0.45 : 1;
+                const size = n.r * n.p;
+                if (n.type === 'hub') glowDot(n.x, n.y, size, '#27d9ff', size * 3.2 * pulse);
+                else glowDot(n.x, n.y, size, '#ffd24a', size * (n === hovered ? 3.4 : 2.6));
+                ctx.globalAlpha = back ? 0.5 : 1;
+                ctx.fillStyle = n.type === 'hub' ? '#bff4ff' : '#ffe9a6';
+                ctx.font = (n.type === 'hub' ? '600 15px' : '13px') + " 'Segoe UI', sans-serif";
+                ctx.textAlign = 'center';
+                if (n.type !== 'hub') ctx.fillText(n.label, n.x, n.y + size + 18);   // the hub sits behind the HUD orb
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        fetch('/graph/data').then(r => r.json()).then(d => {
+            nodes = d.nodes; links = d.links;
+            byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+        }).catch(() => {});
+        requestAnimationFrame(frame);
+
+        function pick(ev) {
+            const x = ev.clientX, y = ev.clientY;
+            let best = null, bestD = Infinity;
+            for (const n of nodes) {
+                if (n.type !== 'broker' || n.x === undefined) continue;
+                const d = Math.hypot(n.x - x, n.y - y);
+                if (d < Math.max(18, n.r * n.p * 1.8) && d < bestD) { best = n; bestD = d; }
+            }
+            return best;
+        }
+
+        canvas.addEventListener('pointerdown', ev => {
+            dragging = true; moved = 0; lastX = ev.clientX; lastY = ev.clientY;
+            canvas.setPointerCapture(ev.pointerId); canvas.classList.add('drag');
+        });
+        canvas.addEventListener('pointermove', ev => {
+            if (dragging) {
+                const dx = ev.clientX - lastX, dy = ev.clientY - lastY;
+                moved += Math.abs(dx) + Math.abs(dy);
+                yaw += dx * 0.006;
+                pitch = Math.max(-1.2, Math.min(1.2, pitch + dy * 0.006));
+                lastX = ev.clientX; lastY = ev.clientY;
+            } else {
+                hovered = pick(ev);
+                canvas.classList.toggle('hover', !!hovered);
+            }
+        });
+        canvas.addEventListener('pointerup', ev => {
+            dragging = false; canvas.classList.remove('drag');
+            if (moved < 5) { const n = pick(ev); if (n) openNode(n); }
+        });
+        canvas.addEventListener('pointerleave', () => { hovered = null; });
+
+        function showMessage(text, isError) {
+            const div = document.createElement('div');
+            div.id = 'broker-msg';
+            if (isError) div.className = 'err';
+            div.textContent = text;
+            popupBody.replaceChildren(div);
+        }
+
+        function showReport(html) {
+            const f = document.createElement('iframe');
+            f.setAttribute('sandbox', '');
+            f.title = 'Portfolio';
+            f.srcdoc = '<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="' + REPORT_CSP
+                + '"><meta charset="utf-8"><style>' + REPORT_BASE_CSS + '</style></head><body>' + String(html) + '</body></html>';
+            popupBody.replaceChildren(f);
+        }
+
+        function closePopup() { popup.hidden = true; popupBody.replaceChildren(); }
+
+        async function openNode(n) {
+            popup.hidden = false;
+            popupTitle.textContent = n.label;
+            if (busy) return;
+            busy = true;
+            showMessage('Checking your live portfolios… this can take up to a minute.');
+            try {
+                const res = await fetch('/graph/query/' + encodeURIComponent(n.id), { method: 'POST' });
+                const d = await res.json();
+                if (d.ok && d.html) showReport(d.html);
+                else showMessage(d.note || 'No report available.', true);
+            } catch (e) {
+                showMessage('Could not reach the server.', true);
+            } finally {
+                busy = false;
+            }
+        }
+
+        document.getElementById('broker-close').addEventListener('click', closePopup);
+        popup.addEventListener('click', (e) => { if (e.target === popup) closePopup(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !popup.hidden) closePopup(); });
+    })();
+    </script>
     <script src="/static/main.js"></script>
 </body>
 </html>
