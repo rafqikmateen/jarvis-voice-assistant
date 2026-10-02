@@ -1,19 +1,92 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S.</title>
+    <title>RKMAerial</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div id="app">
         <div id="orb-container">
-            <div id="orb" class="idle"></div>
+            <div id="orb" class="offline">
+                <svg class="layer halo" viewBox="0 0 300 300" aria-hidden="true">
+                    <defs>
+                        <radialGradient id="haloGrad">
+                            <stop offset="45%" class="glow-stop" stop-opacity="0.5"/>
+                            <stop offset="100%" class="glow-stop" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                    <circle cx="150" cy="150" r="150" fill="url(#haloGrad)"/>
+                </svg>
+                <svg class="layer ring spin-a" viewBox="0 0 300 300" aria-hidden="true">
+                    <circle class="tick tick-fine" cx="150" cy="150" r="145" pathLength="360"/>
+                    <circle class="tick tick-major" cx="150" cy="150" r="145" pathLength="360"/>
+                </svg>
+                <svg class="layer ring spin-b" viewBox="0 0 300 300" aria-hidden="true">
+                    <circle class="arcs arcs-thin" cx="150" cy="150" r="130" pathLength="360"/>
+                </svg>
+                <svg class="layer ring spin-c" viewBox="0 0 300 300" aria-hidden="true">
+                    <circle class="dots" cx="150" cy="150" r="118" pathLength="360"/>
+                </svg>
+                <svg class="layer ring spin-d" viewBox="0 0 300 300" aria-hidden="true">
+                    <circle class="arcs arcs-thick" cx="150" cy="150" r="104" pathLength="360"/>
+                </svg>
+                <svg class="layer ring spin-e" viewBox="0 0 300 300" aria-hidden="true">
+                    <circle class="tick tick-hair" cx="150" cy="150" r="92" pathLength="360"/>
+                </svg>
+                <svg class="layer core" viewBox="0 0 300 300" aria-hidden="true">
+                    <defs>
+                        <radialGradient id="discGrad">
+                            <stop offset="0%" class="disc-b"/>
+                            <stop offset="75%" class="disc-b"/>
+                            <stop offset="100%" class="disc-a"/>
+                        </radialGradient>
+                    </defs>
+                    <circle class="core-line" cx="150" cy="150" r="80"/>
+                    <circle cx="150" cy="150" r="68" fill="url(#discGrad)"/>
+                    <circle class="core-rim" cx="150" cy="150" r="68"/>
+                    <text id="core-name" class="core-name" x="150" y="157" text-anchor="middle">RKMAERIAL</text>
+                </svg>
+            </div>
         </div>
-        <div id="status">Klicke den Orb um zu sprechen</div>
+        <div id="hud-label" class="offline">OFFLINE</div>
+        <div id="model-badge"></div>
+        <div id="status">Click the orb to speak</div>
         <div id="transcript"></div>
+        <div id="sources"></div>
     </div>
+    <div id="tasks">
+        <div id="tasks-title">Tasks (0)</div>
+        <ul id="tasks-list"></ul>
+    </div>
+    <div id="report-panel" hidden>
+        <div id="report-bar">
+            <span id="report-title">Report</span>
+            <button id="report-close" type="button" aria-label="Close report" title="Close">&times;</button>
+        </div>
+        <div id="report-body"></div>
+    </div>
+    <form id="control-bar" autocomplete="off">
+        <input id="text-input" type="text" placeholder="Type a message to Jarvis..." aria-label="Message">
+        <button id="cdp-toggle" class="ctl" type="button" title="Check Chrome debug port 9222" aria-label="Check Chrome debug port 9222">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8"/></svg>
+        </button>
+        <button id="layout-toggle" class="ctl" type="button" title="Open graph view" aria-label="Open graph view">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
+        </button>
+        <button id="bell" class="ctl" type="button" title="Notifications" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21a2 2 0 0 0 4 0"/></svg>
+            <span id="bell-badge" hidden>0</span>
+        </button>
+        <button id="ear" class="ctl" type="button" title="Listening indicator" aria-label="Listening indicator" tabindex="-1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9a5 5 0 0 1 10 0c0 2.5-2 3.2-2.6 5-.5 1.600-1.400 3-3.400 3a2.500 2.500 0 0 1-2.500-2.500M10 9a2 2 0 0 1 4 0"/></svg>
+        </button>
+        <button id="mic-toggle" class="ctl" type="button" title="Toggle microphone (M)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21"/></svg>
+            <span id="mic-label">Mic on</span>
+        </button>
+    </form>
     <script src="/static/main.js"></script>
 </body>
 </html>

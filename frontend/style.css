@@ -20,55 +20,119 @@ body {
     width: 100%;
 }
 
+/* --- Arc-reactor HUD (inline SVG + CSS only) ---
+   Each ring is its own SVG layer; only transform/opacity are animated. */
 #orb-container {
     cursor: pointer;
     display: inline-block;
-    margin-bottom: 40px;
+    margin-bottom: 12px;
 }
 
 #orb {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    transition: all 0.4s ease;
+    --disc-a: #1f7fd0;      /* disc rim */
+    --disc-b: #071c33;      /* disc center (behind the name) */
+    --glow: #1f7fd0;
+    --cyan: #27d9ff;
+    --blue: #2f7bff;
+    --hud: min(260px, 32vh, 38vw);
+    position: relative;
+    width: var(--hud);
+    height: var(--hud);
 }
 
-#orb.idle {
-    background: radial-gradient(circle at 40% 40%, #1a3a5c, #0d1b2a);
-    box-shadow: 0 0 40px rgba(30, 90, 160, 0.3), 0 0 80px rgba(30, 90, 160, 0.1);
+#orb.listening { --disc-a: #19e0ff; --disc-b: #053a4a; --glow: #19e0ff; }
+#orb.thinking  { --disc-a: #ffb020; --disc-b: #3d2703; --glow: #ffb020; }
+#orb.speaking  { --disc-a: #2bf5a0; --disc-b: #06382a; --glow: #2bf5a0; }
+#orb.offline   { --disc-a: #6b7480; --disc-b: #14171c; --glow: #4a525e; }
+
+.layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
-#orb.listening {
-    background: radial-gradient(circle at 40% 40%, #2a6cb8, #1a3a5c);
-    box-shadow: 0 0 60px rgba(42, 108, 184, 0.6), 0 0 120px rgba(42, 108, 184, 0.2);
-    animation: pulse-listen 1.5s ease-in-out infinite;
+.glow-stop { stop-color: var(--glow); transition: stop-color 0.4s ease; }
+.disc-a { stop-color: var(--disc-a); transition: stop-color 0.4s ease; }
+.disc-b { stop-color: var(--disc-b); transition: stop-color 0.4s ease; }
+
+/* Rotating rings */
+.ring {
+    will-change: transform;
+    animation: spin var(--t) linear infinite;
+    transition: opacity 0.4s ease;
+}
+#orb.offline .ring { opacity: 0.3; }
+
+.spin-a { --t: 120s; }
+.spin-b { --t: 28s; animation-direction: reverse; }
+.spin-c { --t: 50s; }
+.spin-d { --t: 16s; animation-direction: reverse; }
+.spin-e { --t: 70s; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ring circle { fill: none; }
+
+.tick-fine  { stroke: var(--cyan); stroke-width: 8;  stroke-dasharray: 0.8 4.2; opacity: 0.55; }
+.tick-major { stroke: var(--cyan); stroke-width: 14; stroke-dasharray: 1.2 28.8; }
+.tick-hair  { stroke: var(--blue); stroke-width: 6;  stroke-dasharray: 0.6 2.4; opacity: 0.7; }
+.arcs-thin  { stroke: var(--cyan); stroke-width: 4;  stroke-dasharray: 70 8 40 8 90 8 30 8 60 38; }
+.arcs-thick { stroke: var(--blue); stroke-width: 7;  stroke-dasharray: 100 20 60 20 110 20 20 10; }
+.dots       { stroke: var(--cyan); stroke-width: 3;  stroke-dasharray: 0.01 3; stroke-linecap: round; opacity: 0.8; }
+
+/* Glow halo: opacity/transform pulse only (no filters) */
+.halo { will-change: transform, opacity; }
+#orb.listening .halo { animation: halo 1.6s ease-in-out infinite; }
+#orb.thinking .halo  { animation: halo 0.8s ease-in-out infinite; }
+#orb.speaking .halo  { animation: halo 0.6s ease-in-out infinite; }
+
+@keyframes halo {
+    0%, 100% { transform: scale(1); opacity: 0.65; }
+    50% { transform: scale(1.06); opacity: 1; }
 }
 
-#orb.thinking {
-    background: radial-gradient(circle at 40% 40%, #c9a227, #8b6914);
-    box-shadow: 0 0 60px rgba(201, 162, 39, 0.5), 0 0 120px rgba(201, 162, 39, 0.15);
-    animation: pulse-think 0.8s ease-in-out infinite;
+/* Static core */
+.core-line { fill: none; stroke: var(--cyan); stroke-width: 1; opacity: 0.5; }
+.core-rim  { fill: none; stroke: var(--disc-a); stroke-width: 2; transition: stroke 0.4s ease; }
+.core-name {
+    fill: #eafcff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 3px;
 }
 
-#orb.speaking {
-    background: radial-gradient(circle at 40% 40%, #27c96a, #148b3d);
-    box-shadow: 0 0 60px rgba(39, 201, 106, 0.6), 0 0 120px rgba(39, 201, 106, 0.2);
-    animation: pulse-speak 0.6s ease-in-out infinite;
+/* Status label + model badge */
+#hud-label {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    padding-left: 0.3em;        /* balances the trailing letter-spacing */
+    color: #1f7fd0;
+    text-shadow: 0 0 10px currentColor;
+    transition: color 0.4s ease;
 }
+#hud-label.listening { color: #19e0ff; }
+#hud-label.thinking  { color: #ffb020; }
+#hud-label.speaking  { color: #2bf5a0; }
+#hud-label.offline   { color: #ff6b6b; }
 
-@keyframes pulse-listen {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+#model-badge {
+    display: inline-block;
+    margin: 8px 0 14px;
+    padding: 2px 10px;
+    border: 1px solid #1a3a5c;
+    border-radius: 10px;
+    background: #0d1b2a;
+    color: #7fb8e6;
+    font-size: 11px;
+    letter-spacing: 0.08em;
 }
+#model-badge:empty { display: none; }
 
-@keyframes pulse-think {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-}
-
-@keyframes pulse-speak {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+@media (prefers-reduced-motion: reduce) {
+    .ring, .halo { animation: none !important; will-change: auto; }
 }
 
 #status {
@@ -82,7 +146,7 @@ body {
     max-width: 600px;
     margin: 0 auto;
     text-align: left;
-    max-height: 300px;
+    max-height: min(300px, 26vh);
     overflow-y: auto;
     padding: 0 20px;
 }
@@ -97,4 +161,228 @@ body {
     color: #4a9eff;
     margin-bottom: 16px;
     font-size: 14px;
+}
+
+/* Shown when another tab has taken over; this page is then paused for good */
+#paused-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5, 8, 12, 0.94);
+    color: #eafcff;
+    font-size: 20px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+#sources {
+    max-width: 600px;
+    margin: 4px auto 0;
+    padding: 0 20px;
+    text-align: left;
+    font-size: 12px;
+    color: #666;
+}
+
+#sources:empty {
+    display: none;
+}
+
+#tasks {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    width: 260px;
+    max-height: 50vh;
+    overflow-y: auto;
+    text-align: left;
+    z-index: 2;                          /* stays above the HUD glow */
+    padding: 8px 10px;
+    background: rgba(10, 10, 15, 0.85);
+    border-radius: 6px;
+}
+
+/* Bottom control bar: dark glass, text input then five icon buttons */
+#control-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(680px, 94vw);
+    padding: 8px 10px;
+    background: rgba(13, 22, 34, 0.55);
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    border-radius: 14px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+#text-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(5, 10, 18, 0.55);
+    color: #cfe3f5;
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+}
+
+#text-input:focus {
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
+#text-input::placeholder {
+    color: #55718c;
+}
+
+.ctl {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    min-width: 38px;
+    padding: 0 9px;
+    justify-content: center;
+    background: rgba(13, 27, 42, 0.7);
+    color: #4a9eff;
+    border: 1px solid #1a3a5c;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.ctl:hover {
+    border-color: #4a9eff;
+}
+
+.ctl svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#cdp-toggle.ok { color: #2bf5a0; border-color: #1a8a5c; }
+#cdp-toggle.bad { color: #ff6b6b; border-color: #8b1a1a; }
+#cdp-toggle.checking { opacity: 0.6; }
+
+#ear { cursor: default; color: #55718c; }
+#ear.on { color: #2bf5a0; border-color: #1a8a5c; box-shadow: 0 0 10px rgba(43, 245, 160, 0.45); }
+
+#bell-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #ff4d4d;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+}
+#bell-badge[hidden] { display: none; }
+#bell.flash { animation: bell-flash 0.6s ease-in-out 4; }
+
+@keyframes bell-flash {
+    0%, 100% { color: #4a9eff; box-shadow: none; }
+    50% { color: #ffd24a; border-color: #ffd24a; box-shadow: 0 0 14px rgba(255, 210, 74, 0.7); }
+}
+
+#mic-toggle.off {
+    background: #3a0d0d;
+    color: #ff6b6b;
+    border-color: #8b1a1a;
+    font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #bell.flash { animation: none; color: #ffd24a; }
+}
+
+/* Report panel: right side; the task panel (left), the HUD (center) and the control bar (bottom) stay clear */
+#report-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    bottom: 90px;
+    width: min(520px, 38vw);
+    display: flex;
+    flex-direction: column;
+    z-index: 2;
+    background: #0a0f16;
+    border: 1px solid #1a3a5c;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#report-panel[hidden] {
+    display: none;
+}
+
+#report-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #0d1b2a;
+    color: #4a9eff;
+    font-size: 14px;
+}
+
+#report-close {
+    background: none;
+    border: none;
+    color: #4a9eff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#report-body {
+    flex: 1;
+    min-height: 0;
+}
+
+#report-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #0a0f16;
+}
+
+#tasks-title {
+    color: #4a9eff;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+#tasks-list {
+    list-style: none;
+}
+
+#tasks-list li {
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 6px;
 }
