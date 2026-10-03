@@ -95,6 +95,7 @@
     </div>
     <form id="control-bar" autocomplete="off">
         <input id="text-input" type="text" placeholder="Type a message to Jarvis..." aria-label="Message">
+        <button id="kill-channels" class="ctl" type="button" title="Stop servers on ports 8340 and 8004 and close all command prompt windows">❌ KILL CHANNELS</button>
         <button id="cdp-toggle" class="ctl" type="button" title="Check Chrome debug port 9222" aria-label="Check Chrome debug port 9222">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8"/></svg>
         </button>
@@ -511,7 +512,53 @@
                     box.append(row);
                     const b = el('div', 'sp-bar thin'); const f = el('i'); f.style.width = Math.max(2, r.bytes / max * 100) + '%'; b.append(f); box.append(b);
                 });
-                box.append(el('div', 'sp-dim', `★ cache/temp/log-like: ${fmtBytes(d.cacheBytes)}. Read-only audit; nothing is deleted.${d.partial ? ' Partial scan (time limit).' : ''}`));
+                box.append(el('div', 'sp-dim', `★ cache/temp/log-like: ${fmtBytes(d.cacheBytes)}.${d.partial ? ' Partial scan (time limit).' : ''}`));
+                box.append(el('div', 'sp-div', 'Cleanable folders'));
+                const live = el('div', 'sp-live-area'); box.append(live);
+                const trashSvg = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6'); s.append(p); return s; };
+                const names = { pip: 'pip cache', 'ms-playwright': 'ms-playwright browsers', npm: 'npm cache' };
+                let busy = false;
+                const paintTargets = s => {
+                    const cap = Math.max(1, ...s.targets.map(t => t.bytes));
+                    const dpct = Math.round(s.disk.used / s.disk.total * 100);
+                    fill.style.width = dpct + '%';
+                    box.firstChild.textContent = `Disk ${fmtBytes(s.disk.used)} of ${fmtBytes(s.disk.total)} used (${dpct}%) · ${fmtBytes(s.disk.free)} free`;
+                    const rows = s.targets.map(t => {
+                        const wrap = el('div');
+                        const row = el('div', 'sp-row' + (t.bytes ? ' sp-me' : ''));
+                        const right = el('span');
+                        right.append(fmtBytes(t.bytes) + (t.exists ? '' : ' (empty)'));
+                        const tb = el('button', 'sp-trash'); tb.type = 'button'; tb.title = 'Delete ' + names[t.id]; tb.setAttribute('aria-label', 'Delete ' + names[t.id]);
+                        tb.append(trashSvg()); tb.disabled = busy || !t.exists;
+                        tb.addEventListener('click', () => clean(t.id, names[t.id]));
+                        right.append(tb);
+                        row.append(el('span', '', names[t.id]), right);
+                        const b = el('div', 'sp-bar thin'); const f = el('i'); f.style.width = (t.bytes ? Math.max(2, t.bytes / cap * 100) : 0) + '%'; b.append(f);
+                        wrap.append(row, b); return wrap;
+                    });
+                    const pb = el('button', 'sp-purge', '✓ PURGE ALL JUNK'); pb.type = 'button'; pb.disabled = busy || !s.targets.some(t => t.exists);
+                    pb.addEventListener('click', () => clean('all', 'ALL listed folders AND run the full system purge (Temp, Windows Update cache, DISM component cleanup, hibernation off, ALL restore points / shadow copies, Recycle Bin, Prefetch, DNS flush). Takes several minutes and needs Administrator rights'));
+                    live.replaceChildren(...rows, pb);
+                    if (s.errors && s.errors.length) live.append(el('div', 'sp-dim', s.errors.join('; ')));
+                };
+                async function clean(target, label) {
+                    if (busy || !confirm(`Permanently delete ${label}?\n\nThis cannot be undone. Deleting ms-playwright means running "playwright install chromium" again for Jarvis browser control.`)) return;
+                    busy = true; live.querySelectorAll('button').forEach(b => b.disabled = true);
+                    if (target === 'all') {
+                        const pb = live.querySelector('.sp-purge');
+                        if (pb) { pb.replaceChildren(el('span', 'sp-spinner')); pb.setAttribute('aria-label', 'Purging'); }
+                        live.append(el('div', 'sp-purging', '⚡ EXECUTING SYSTEM PURGE SCRIPTS... DISM & COMPONENT CLEANUP RUNNING (THIS MAY TAKE SEVERAL MINUTES)'));
+                    }
+                    try {
+                        const r = await fetch('/api/storage/clean', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target }) });
+                        busy = false; paintTargets(await r.json());   // spinner and status vanish, button resets, bars drop
+                    } catch (e) {
+                        busy = false;
+                        try { paintTargets(await getJSON('/api/storage/targets')); } catch (e2) { live.querySelectorAll('.sp-purging').forEach(n => n.remove()); }
+                        live.append(el('div', 'sp-dim', 'Clean failed.'));
+                    }
+                }
+                paintTargets(await getJSON('/api/storage/targets'));
                 show(tk, box);
             } catch (e) { note(tk, 'Audit failed.'); }
         }
@@ -551,6 +598,7 @@
                 const d = await getJSON('/digest/cartagena');
                 if (!d.ok) return note(tk, d.note || 'Digest unavailable.');
                 const ul = el('ul', 'sp-bullets');
+                if (d.weather) ul.append(el('li', '', `Weather in ${d.weather.location}: ${d.weather.temp}, ${d.weather.condition}, humidity ${d.weather.humidity}, precipitation ${d.weather.precip}`));
                 d.bullets.forEach(b => ul.append(el('li', '', b)));
                 show(tk, ul);
             } catch (e) { note(tk, 'Digest unavailable.'); }

@@ -38,6 +38,15 @@ const layoutToggle = document.getElementById('layout-toggle');
 const leftCol = document.getElementById('left-col');
 const clockTime = document.getElementById('clock-time');
 const clockDate = document.getElementById('clock-date');
+const killBtn = document.getElementById('kill-channels');
+// Master off switch: the server stops ports 8340/8004, then runs `taskkill /F /IM cmd.exe`.
+killBtn.addEventListener('click', async () => {
+    if (!confirm('KILL CHANNELS?\n\nThis stops Jarvis and the TTS server and force-closes ALL open command prompt windows.')) return;
+    killBtn.disabled = true;
+    killBtn.textContent = 'Shutting down…';
+    try { await fetch('/api/kill', { method: 'POST' }); } catch (e) { /* server may already be gone */ }
+    document.body.style.opacity = '0.4';
+});
 const bell = document.getElementById('bell');
 const bellBadge = document.getElementById('bell-badge');
 const ear = document.getElementById('ear');

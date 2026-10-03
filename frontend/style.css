@@ -281,6 +281,18 @@ body {
     border-color: #4a9eff;
 }
 
+#kill-channels {
+    padding: 0 12px;
+    background: rgba(120, 0, 10, 0.55);
+    color: #ffd6d6;
+    border: 1px solid #ff2a3d;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    box-shadow: 0 0 10px #ff2a3d, inset 0 0 8px rgba(255, 42, 61, 0.5);
+}
+#kill-channels:hover:not(:disabled) { background: rgba(190, 0, 20, 0.75); border-color: #ff5a68; }
+#kill-channels:disabled { opacity: 0.6; cursor: default; }
+
 .ctl svg {
     width: 20px;
     height: 20px;
@@ -618,6 +630,13 @@ body {
 .sp-btn { margin: 8px 6px 0 0; padding: 5px 12px; background: rgba(255, 210, 74, 0.12); color: #ffe9a6; border: 1px solid rgba(255, 210, 74, 0.45); border-radius: 8px; font: inherit; cursor: pointer; }
 .sp-btn:hover:not(:disabled) { background: rgba(255, 210, 74, 0.25); }
 .sp-btn:disabled { opacity: 0.5; cursor: default; }
+.sp-trash { margin-left: 8px; width: 28px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 40, 120, 0.1); color: #ff4fa0; border: 1px solid #ff4fa0; border-radius: 7px; cursor: pointer; box-shadow: 0 0 8px rgba(255, 79, 160, 0.6); }
+.sp-trash:hover:not(:disabled) { background: rgba(255, 40, 120, 0.3); box-shadow: 0 0 14px #ff4fa0; }
+.sp-trash:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+.sp-trash svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sp-purge { display: block; margin: 14px auto 2px; padding: 9px 22px; font: inherit; font-weight: 700; letter-spacing: 0.04em; color: #fff; background: rgba(255, 40, 120, 0.25); border: 1px solid #ff4fa0; border-radius: 10px; cursor: pointer; box-shadow: 0 0 14px rgba(255, 79, 160, 0.7); }
+.sp-purge:hover:not(:disabled) { background: rgba(255, 40, 120, 0.45); }
+.sp-purge:disabled { opacity: 0.5; cursor: default; }
 .sp-bar { height: 6px; margin: 4px 0; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
 .sp-bar.thin { height: 3px; margin: 1px 0 5px; }
 .sp-bar i { display: block; height: 100%; background: #27d9ff; }
@@ -652,3 +671,8 @@ body {
 #wa-dismiss { background: none; border: none; color: #39ff88; font-size: 20px; line-height: 1; cursor: pointer; }
 #wa-text { margin: 6px 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
 #wa-hint { font-size: 11px; color: #7fbf9f; }
+
+.sp-spinner { display: inline-block; width: 18px; height: 18px; vertical-align: middle; border: 3px solid rgba(0, 240, 255, 0.2); border-top-color: #00f0ff; border-radius: 50%; box-shadow: 0 0 10px #00f0ff; animation: sp-spin 0.8s linear infinite; }
+.sp-purging { margin: 10px 0 2px; text-align: center; font-weight: 700; font-size: 12px; letter-spacing: 0.03em; color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.7); }
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sp-spinner { animation-duration: 2.4s; } }
