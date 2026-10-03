@@ -168,6 +168,20 @@ body {
     min-height: 20px;
 }
 
+#api-cost {
+    position: fixed;
+    bottom: calc(1.2vh + 22px);   /* just above the status line */
+    right: 3vw;
+    width: calc(88vh * 400 / 900);
+    text-align: center;
+    font-size: 11px;
+    color: #7fb8e6;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+    text-shadow: 0 0 3px #000, 0 0 6px #000, 1px 1px 2px #000, -1px -1px 2px #000, 0 2px 8px rgba(0, 0, 0, 0.95);
+    pointer-events: auto;
+}
+
 /* Shown when another tab has taken over; this page is then paused for good */
 #paused-overlay {
     position: fixed;
@@ -641,7 +655,7 @@ body {
 .sp-bar.thin { height: 3px; margin: 1px 0 5px; }
 .sp-bar i { display: block; height: 100%; background: #27d9ff; }
 .sp-bullets { margin: 0; padding: 4px 0 0 16px; line-height: 1.5; }
-.sp-bullets li { margin-bottom: 8px; color: #dff3ff; }
+.sp-bullets li { margin-bottom: 8px; color: #dff3ff; overflow-wrap: anywhere; }
 .sp-input { box-sizing: border-box; width: 100%; min-height: 84px; resize: vertical; padding: 8px; background: rgba(5, 10, 18, 0.55); color: #cfe3f5; border: 1px solid rgba(74, 158, 255, 0.3); border-radius: 8px; font: 12px/1.4 inherit; outline: none; }
 .sp-log { margin-top: 8px; max-height: 46vh; overflow-y: auto; }
 .sp-turn { margin: 6px 0; padding: 6px 8px; border-left: 2px solid #4a9eff; background: rgba(255, 255, 255, 0.04); border-radius: 0 6px 6px 0; }

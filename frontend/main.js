@@ -666,3 +666,15 @@ function layoutBubble() {
 window.addEventListener('resize', layoutBubble);
 if (window.ResizeObserver) new ResizeObserver(layoutBubble).observe(robot);
 layoutBubble();
+
+// Haiku API spend under the robot, from the server's persisted usage tracker.
+const apiCost = document.getElementById('api-cost');
+async function refreshApiCost() {
+    try {
+        const d = await (await fetch('/api/usage/stats')).json();
+        const c = d.cumulative, s = d.session;
+        apiCost.textContent = 'API spend $' + c.usd.toFixed(4) + ' (' + c.turns + ' turns) · session $' + s.usd.toFixed(4);
+    } catch (e) { apiCost.textContent = ''; }   // server down or endpoint missing: show nothing
+}
+refreshApiCost();
+setInterval(refreshApiCost, 30000);
