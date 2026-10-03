@@ -1,196 +1,380 @@
 const GRAPH = {
   "nodes": [
     {
-      "id": "market-scraper",
-      "label": "Market Scraper Pipeline",
-      "type": "hub",
-      "group": "System Subsystems",
-      "color": "#a0a0a0",
-      "excerpt": "System pipeline node (hub).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "webull-main",
-      "label": "Webull Main",
-      "type": "broker",
-      "group": "Financial Engines",
-      "color": "#00ffcc",
-      "excerpt": "System pipeline node (broker).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "webull-crypto",
-      "label": "Webull Crypto",
-      "type": "broker",
-      "group": "Financial Engines",
-      "color": "#00ffcc",
-      "excerpt": "System pipeline node (broker).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "ibkr-tracker",
-      "label": "IBKR Tracker",
-      "type": "broker",
-      "group": "Financial Engines",
-      "color": "#00ffcc",
-      "excerpt": "System pipeline node (broker).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "philly-sports",
-      "label": "Philly Sports Core",
-      "type": "sports",
-      "group": "System Subsystems",
-      "color": "#a0a0a0",
-      "excerpt": "System pipeline node (sports).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "storage-auditor",
-      "label": "Local Storage Auditor",
-      "type": "storage",
-      "group": "System Subsystems",
-      "color": "#a0a0a0",
-      "excerpt": "System pipeline node (storage).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "db-compactor",
-      "label": "Automated Database Compactor",
-      "type": "compactor",
-      "group": "System Subsystems",
-      "color": "#a0a0a0",
-      "excerpt": "System pipeline node (compactor).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "cartagena-digest",
+      "id": 0,
       "label": "Daily Cartagena Digest",
-      "type": "digest",
       "group": "Local Context",
       "color": "#ff9900",
-      "excerpt": "System pipeline node (digest).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "ai-oracle",
-      "label": "AI Self-Dialogue Oracle",
-      "type": "oracle",
-      "group": "Voice AI Core",
-      "color": "#ff0066",
-      "excerpt": "System pipeline node (oracle).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": "net-mapper",
-      "label": "Network Device Mapper",
-      "type": "netmap",
-      "group": "System Subsystems",
-      "color": "#a0a0a0",
-      "excerpt": "System pipeline node (netmap).",
-      "raw_text": "",
-      "filename": ""
-    },
-    {
-      "id": 0,
-      "label": "Claude Code Pipelines",
-      "group": "Workshop Notes",
-      "color": "#3399ff",
-      "excerpt": "Claude Code Pipelines\nMaximize file-system workflow efficiency by executing direct codebase modifications via terminal automation hooks. \nIsolate third-party libraries and leverage lightweight internal wrappers to lower latency bounds. \nImplement systematic validation steps including regex file sweeps, parallel network resource collection loops, and cache invalidation protocols.",
-      "raw_text": "# Claude Code Pipelines\nMaximize file-system workflow efficiency by executing direct codebase modifications via terminal automation hooks. \nIsolate third-party libraries and leverage lightweight internal wrappers to lower latency bounds. \nImplement systematic validation steps including regex file sweeps, parallel network resource collection loops, and cache invalidation protocols.",
-      "filename": "Claude_Code_Pipelines.md"
+      "val": 6,
+      "excerpt": "Live October 2026 climate feeds, Keyless Open-Meteo variables, and regional economic briefs.\n\nLive Cartagena bulletin (updated 2026-10-03 06:57)\nWeather: 78\u00b0F (25.3\u00b0C), Overcast; today 25-29\u00b0C, rain 90% (12.6 mm)\nUSD/COP: 1 USD = 3,312 COP; 1 EUR = 3,726 COP\nWater & utilities (Acuacar):\n- Oct 02: Culmina la reparaci\u00f3n de la tuber\u00eda de 45 pulgadas en Pasacaballos\n- Oct 02: Aguas de Cartagena alcanza un 85% de avance en la reparaci\u00f3n de la tuber\u00eda de 45 pulgadas en Pasacaballos\n- Oct 02: Aguas de Cartagena contin\u00faa con la reparaci\u00f3n de la tuber\u00eda de 45 pulgadas en Pasacaballos\n- Oct 01: Aguas de Cartagena alcanza un 55 % de avance en la reparaci\u00f3n de una tuber\u00eda de 45 pulgadas en Pasacaballos\n- Oct 01: Aguas de Cartagena avanza en la reparaci\u00f3n de una tuber\u00eda de 45 pulgadas en Pasacaballos\nCulture & festivals (IPCC):\n- Oct 01 [Preludio]: Cartagena se prepara para encender la fiesta con el primer Preludio Cultural de la Localidad Hist\u00f3rica y del Caribe Norte en Canapote (viernes 2 de octubre \u00b7 4:00 p.m.)\n- Sep 24 [News]: Cartagena y Bol\u00edvar vivir\u00e1n una Noche de Museos este viernes 25 de septiembre\n- Sep 22 [News]: HOY cierra la convocatoria de CarrozaLab II para seleccionar los dise\u00f1os carrozas macrofiguras de las Fiestas de Independencia\n- Sep 18 [News]: Cartagena abre convocatoria \u2018\u00danete a la Fiesta\u2019 para acreditar agrupaciones y disfraces que participar\u00e1n en el Desfile de Independencia 2026\n- Sep 17 [News]: Las candidatas al Reinado Popular vivieron una jornada de capacitaci\u00f3n e inspiraci\u00f3n junto a destacadas exreinas nacionales y distritales"
     },
     {
       "id": 1,
-      "label": "Jarvis Core Skeleton",
-      "group": "Workshop Notes",
-      "color": "#3399ff",
-      "excerpt": "Jarvis Core Skeleton\nThe foundational runtime skeleton depends on an Iron-Man reactor HUD style interface pulsing in synchronization with outbound text-to-speech audio streams. \nIntegrate cloned ElevenLabs voice synthesis with deep barge-in capabilities allowing real-time speech interruption. \nMaintain persistent context layers including live local environment scrapers and cross-platform notification pipelines.",
-      "raw_text": "# Jarvis Core Skeleton\nThe foundational runtime skeleton depends on an Iron-Man reactor HUD style interface pulsing in synchronization with outbound text-to-speech audio streams. \nIntegrate cloned ElevenLabs voice synthesis with deep barge-in capabilities allowing real-time speech interruption. \nMaintain persistent context layers including live local environment scrapers and cross-platform notification pipelines.",
-      "filename": "Jarvis_Core_Skeleton.md"
+      "label": "IBKR Trader Node",
+      "group": "Financial Engines",
+      "color": "#00ffcc",
+      "val": 7,
+      "excerpt": "Interactive Brokers automated engine tracking equity matrices, portfolio balances, and safety guards."
     },
     {
       "id": 2,
-      "label": "Market Research Index",
-      "group": "Market Research",
-      "color": "#3399ff",
-      "excerpt": "Market Research Index\nAnalyze high-velocity automation trends across modern small businesses. \nIdentify major technical operational bottlenecks including disjointed CRM tracking, delayed manual data cross-referencing, and complex API integration overhead. \nSolutions leveraging local automated LLM execution pipelines significantly lower ongoing SaaS subscriptions and subscription dependencies.",
-      "raw_text": "# Market Research Index\nAnalyze high-velocity automation trends across modern small businesses. \nIdentify major technical operational bottlenecks including disjointed CRM tracking, delayed manual data cross-referencing, and complex API integration overhead. \nSolutions leveraging local automated LLM execution pipelines significantly lower ongoing SaaS subscriptions and subscription dependencies.",
-      "filename": "Market_Research_Index.md"
+      "label": "Webull Main Engine",
+      "group": "Financial Engines",
+      "color": "#00ffcc",
+      "val": 7,
+      "excerpt": "Active trading portal processing live indicator triggers and custom market tracking sheets."
     },
     {
       "id": 3,
-      "label": "Skool Community Infrastructure",
-      "group": "Skool Community",
-      "color": "#3399ff",
-      "excerpt": "Skool Community Infrastructure\nThe Free Skool Community serves as the foundational user funnel. \nProvide interactive plug-and-play code frameworks as immediate value props. \nOrganize discussion spaces into logical categories: Daily Standups, Hardware Integration, and Prompt Pack Customization. \nGamify milestone rewards to incentivize community contributions and active troubleshooting support among members.",
-      "raw_text": "# Skool Community Infrastructure\nThe Free Skool Community serves as the foundational user funnel. \nProvide interactive plug-and-play code frameworks as immediate value props. \nOrganize discussion spaces into logical categories: Daily Standups, Hardware Integration, and Prompt Pack Customization. \nGamify milestone rewards to incentivize community contributions and active troubleshooting support among members.",
-      "filename": "Skool_Community_Infrastructure.md"
+      "label": "Webull Crypto Node",
+      "group": "Financial Engines",
+      "color": "#00ffcc",
+      "val": 7,
+      "excerpt": "Dedicated digital currency scanner monitoring high-velocity assets and transaction states."
     },
     {
       "id": 4,
-      "label": "YouTube Channel Strategy",
-      "group": "YouTube Channel",
-      "color": "#3399ff",
-      "excerpt": "YouTube Channel Strategy\nFocus on high-engagement hooks and systematic content pillars. \nCluster topics around AI automation, local development setups, and Jarvis integration. \nEvery video should feature a clear hook-formula: problem identification, immediate visual proof, and a step-by-step installation blueprint. \nTarget key terms such as Claude Code, Jarvis assistant development, and autonomous voice control. Maintain high visual pacing to match algorithmic recommendation systems.",
-      "raw_text": "# YouTube Channel Strategy\nFocus on high-engagement hooks and systematic content pillars. \nCluster topics around AI automation, local development setups, and Jarvis integration. \nEvery video should feature a clear hook-formula: problem identification, immediate visual proof, and a step-by-step installation blueprint. \nTarget key terms such as Claude Code, Jarvis assistant development, and autonomous voice control. Maintain high visual pacing to match algorithmic recommendation systems.",
-      "filename": "YouTube_Channel_Strategy.md"
+      "label": "Chatterbox TTS Server",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 8,
+      "excerpt": "High-fidelity voice synthesis engine running on Port 8004 streaming 48 kHz uncompressed custom WAV audio loops."
+    },
+    {
+      "id": 5,
+      "label": "WhatsApp Baileys Bridge",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 8,
+      "excerpt": "Ultra-stable session socket running on Port 3101 managing automated 7:00 AM broadcast cards with custom gitignore rules."
+    },
+    {
+      "id": 6,
+      "label": "Automated Database Compactor",
+      "group": "System Subsystems",
+      "color": "#a0a0a0",
+      "val": 4,
+      "excerpt": "Background storage maintenance engine sweeping file repositories and recycling dead logs."
+    },
+    {
+      "id": 7,
+      "label": "Local Storage Auditor",
+      "group": "System Subsystems",
+      "color": "#a0a0a0",
+      "val": 4,
+      "excerpt": "Disk architecture diagnostics tracking memory bounds and file version safety rails."
+    },
+    {
+      "id": 8,
+      "label": "Anthropic Monitor: Account Balance: $87.89",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 6,
+      "excerpt": "True remaining developer usage credits available for active pay-as-you-go operations."
+    },
+    {
+      "id": 9,
+      "label": "Anthropic Monitor: Included Credit: $100.00 / $100.00",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 6,
+      "excerpt": "Massive promotional credit tier active and fully untouched until official expiration on November 5."
+    },
+    {
+      "id": 10,
+      "label": "Anthropic Monitor: Monthly Accumulation: $12.39 Spent",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 6,
+      "excerpt": "Total consolidated financial expenditure compiled across active billing nodes this month."
+    },
+    {
+      "id": 11,
+      "label": "Anthropic Monitor: Resource Bound: 70% Weekly Limit Used",
+      "group": "Voice AI Core",
+      "color": "#ff0066",
+      "val": 6,
+      "excerpt": "Weekly model quota tracking threshold. Short-term capacity limits scheduled to reset fully this Sunday at 12:00 PM."
+    },
+    {
+      "id": 12,
+      "label": "Cluster: YouTube Strategy",
+      "group": "YouTube Strategy",
+      "color": "#ff3333",
+      "val": 6,
+      "excerpt": "Master data repository housing high-density metrics regarding YouTube Strategy implementations."
+    },
+    {
+      "id": 13,
+      "label": "YouTube Hook Formula",
+      "group": "YouTube Strategy",
+      "color": "#ff3333",
+      "val": 4,
+      "excerpt": "Problem identification, immediate visual proof, and step-by-step installation blue-printing blocks."
+    },
+    {
+      "id": 14,
+      "label": "Content Pillar Blueprint",
+      "group": "YouTube Strategy",
+      "color": "#ff3333",
+      "val": 4,
+      "excerpt": "Isolate high-engagement local development rigs, autonomous voice control modules, and direct Claude Code pipelines."
+    },
+    {
+      "id": 15,
+      "label": "Algorithmic Retention Engine",
+      "group": "YouTube Strategy",
+      "color": "#ff3333",
+      "val": 4,
+      "excerpt": "Pacing rules engineered to match recommendation matrices via fast visual setups and hook triggers."
+    },
+    {
+      "id": 16,
+      "label": "Cluster: Skool Community",
+      "group": "Skool Community",
+      "color": "#33cc66",
+      "val": 6,
+      "excerpt": "Master data repository housing high-density metrics regarding Skool Community implementations."
+    },
+    {
+      "id": 17,
+      "label": "Skool User Funnel",
+      "group": "Skool Community",
+      "color": "#33cc66",
+      "val": 4,
+      "excerpt": "Free community architecture designed as the foundational onboarding structure for automated assets."
+    },
+    {
+      "id": 18,
+      "label": "Plug-and-Play Frameworks",
+      "group": "Skool Community",
+      "color": "#33cc66",
+      "val": 4,
+      "excerpt": "Distribute immediate, interactive code layouts to provide instant utility upon membership initialization."
+    },
+    {
+      "id": 19,
+      "label": "Gamification Reward Matrix",
+      "group": "Skool Community",
+      "color": "#33cc66",
+      "val": 4,
+      "excerpt": "Milestone tiers configured to incentivize active community participation, peer reviews, and peer trouble-shooting loops."
+    },
+    {
+      "id": 20,
+      "label": "Cluster: Market Research",
+      "group": "Market Research",
+      "color": "#9933ff",
+      "val": 6,
+      "excerpt": "Master data repository housing high-density metrics regarding Market Research implementations."
+    },
+    {
+      "id": 21,
+      "label": "SaaS Operational Bottlenecks",
+      "group": "Market Research",
+      "color": "#9933ff",
+      "val": 4,
+      "excerpt": "Identify major administrative drags including fragmented CRM pipelines and lagging manual data cross-referencing loops."
+    },
+    {
+      "id": 22,
+      "label": "Local LLM Disintermediation",
+      "group": "Market Research",
+      "color": "#9933ff",
+      "val": 4,
+      "excerpt": "Leveraging local automated model execution networks to permanently eliminate ongoing subscription dependencies and lower SaaS overhead."
     }
   ],
   "links": [
     {
-      "source": "market-scraper",
-      "target": "webull-main",
+      "source": 4,
+      "target": 8,
+      "value": 3
+    },
+    {
+      "source": 4,
+      "target": 9,
+      "value": 3
+    },
+    {
+      "source": 4,
+      "target": 10,
+      "value": 3
+    },
+    {
+      "source": 4,
+      "target": 11,
+      "value": 3
+    },
+    {
+      "source": 12,
+      "target": 13,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "webull-crypto",
+      "source": 12,
+      "target": 14,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "ibkr-tracker",
+      "source": 12,
+      "target": 15,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "philly-sports",
+      "source": 16,
+      "target": 17,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "storage-auditor",
+      "source": 16,
+      "target": 18,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "db-compactor",
+      "source": 16,
+      "target": 19,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "cartagena-digest",
+      "source": 20,
+      "target": 21,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "ai-oracle",
+      "source": 20,
+      "target": 22,
       "value": 2
     },
     {
-      "source": "market-scraper",
-      "target": "net-mapper",
-      "value": 2
+      "source": 1,
+      "target": 18,
+      "value": 1
+    },
+    {
+      "source": 1,
+      "target": 5,
+      "value": 1
+    },
+    {
+      "source": 5,
+      "target": 6,
+      "value": 1
+    },
+    {
+      "source": 6,
+      "target": 17,
+      "value": 1
+    },
+    {
+      "source": 17,
+      "target": 22,
+      "value": 1
+    },
+    {
+      "source": 1,
+      "target": 2,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 4,
+      "value": 1
+    },
+    {
+      "source": 4,
+      "target": 6,
+      "value": 1
+    },
+    {
+      "source": 6,
+      "target": 15,
+      "value": 1
+    },
+    {
+      "source": 1,
+      "target": 2,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 7,
+      "value": 1
+    },
+    {
+      "source": 1,
+      "target": 15,
+      "value": 1
+    },
+    {
+      "source": 1,
+      "target": 7,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 3,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 19,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 15,
+      "value": 1
+    },
+    {
+      "source": 2,
+      "target": 4,
+      "value": 1
+    },
+    {
+      "source": 4,
+      "target": 5,
+      "value": 1
+    },
+    {
+      "source": 3,
+      "target": 17,
+      "value": 1
+    },
+    {
+      "source": 4,
+      "target": 5,
+      "value": 1
+    },
+    {
+      "source": 6,
+      "target": 7,
+      "value": 1
+    },
+    {
+      "source": 7,
+      "target": 17,
+      "value": 1
+    },
+    {
+      "source": 13,
+      "target": 18,
+      "value": 1
+    },
+    {
+      "source": 13,
+      "target": 15,
+      "value": 1
+    },
+    {
+      "source": 14,
+      "target": 21,
+      "value": 1
+    },
+    {
+      "source": 17,
+      "target": 19,
+      "value": 1
     }
   ]
 };

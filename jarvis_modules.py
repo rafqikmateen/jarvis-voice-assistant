@@ -708,6 +708,27 @@ async def _briefing_loop():
         await asyncio.sleep(max(30, min(3600, (nxt - now).total_seconds())))
 
 
+# ---------------------------------------------------------------- Galaxy refresh
+# Rebuilds frontend/graph-data.js (including the live Cartagena scrape on the Daily Cartagena Digest node) on a timer.
+# The page reads that file when it loads, so reload the page to see new data.
+GALAXY_REFRESH_SECONDS = 20 * 60
+
+
+def _rebuild_galaxy():
+    import knowledge_galaxy
+    knowledge_galaxy.compile_high_density_galaxy()
+
+
+async def _galaxy_loop():
+    await asyncio.sleep(20)   # let the server finish starting first
+    while True:
+        try:
+            await asyncio.to_thread(_rebuild_galaxy)
+        except Exception as e:
+            print(f"  Galaxy refresh failed: {type(e).__name__}", flush=True)
+        await asyncio.sleep(GALAXY_REFRESH_SECONDS)
+
+
 # ---------------------------------------------------------------- lifecycle
 _tasks = []
 
@@ -716,6 +737,7 @@ async def _startup():
     _start_whatsapp()
     _tasks.append(asyncio.create_task(_weekend_loop()))
     _tasks.append(asyncio.create_task(_briefing_loop()))
+    _tasks.append(asyncio.create_task(_galaxy_loop()))
 
 
 async def _shutdown():
