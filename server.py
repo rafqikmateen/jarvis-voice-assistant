@@ -756,7 +756,8 @@ def write_tavily_count(count):
 
 
 def clean_snippet(text, limit):
-    text = re.sub(r"\s+", " ", str(text or "")).strip()[:limit]
+    text = str(text or "").encode('utf-8', errors='ignore').decode('utf-8')   # drop invalid characters first
+    text = re.sub(r"\s+", " ", text).strip()[:limit]
     return text.replace("[ACTION:", "[").replace("===", "=")   # defang action tags and block delimiters
 
 

@@ -8,6 +8,10 @@
 </head>
 <body>
     <canvas id="globe"></canvas>
+    <aside id="brand-dock">
+        <div id="brand-title">&#x1F916; J.A.R.V.I.S. <span id="brand-state">(ONLINE)</span></div>
+        <div id="brand-model">Model: Claude-Haiku-4.5</div>
+    </aside>
     <div id="app">
         <div id="orb-container">
             <div id="orb" class="offline">
@@ -54,9 +58,12 @@
         <div id="hud-label" class="offline">OFFLINE</div>
         <div id="model-badge"></div>
         <div id="status">Click the orb to speak</div>
+    </div>
+    <section id="log-panel" aria-label="Conversation">
+        <div id="log-title">TRANSCRIPT</div>
         <div id="transcript"></div>
         <div id="sources"></div>
-    </div>
+    </section>
     <div id="tasks">
         <div id="tasks-title">Tasks (0)</div>
         <ul id="tasks-list"></ul>
@@ -114,30 +121,41 @@
         const popup = document.getElementById('broker-popup');
         const popupTitle = document.getElementById('broker-title');
         const popupBody = document.getElementById('broker-body');
-        let W = 0, H = 0, R = 0, dpr = 1;
+        let W = 0, H = 0, R = 0, RX = 0, CX = 0, CY = 0, dpr = 1;
         let nodes = [], links = [], byId = {};
         let yaw = 0, pitch = -0.35;
         let dragging = false, lastX = 0, lastY = 0, moved = 0;
         let hovered = null, busy = false;
         const AUTO_SPIN = 0.0025;      // radians per frame
+        const NODE_ORBIT = 1.3;        // vertical orbit of the child nodes, as a multiple of the wireframe radius
+        const NODE_STRETCH = 1.8;      // horizontal orbit is this much wider, so the links run long across the screen
+        const ELASTIC = 0.14;          // how far (fraction of the orbit) nodes breathe in and out
+        const STRAND_AMP = 11;         // px: how far the two DNA strands swing from the link axis
+        const TOP_RESERVE = 20, BOTTOM_RESERVE = 110;   // keep clear of the task panel edge and the control bar + hint
 
         function resize() {
             dpr = window.devicePixelRatio || 1;
             W = window.innerWidth; H = window.innerHeight;
             canvas.width = W * dpr; canvas.height = H * dpr;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            R = Math.min(W, H) * 0.4;
+            // Centre the globe in the band between the top margin and the control bar, and size it so the orbiting nodes and labels fit.
+            const bandH = Math.max(200, H - TOP_RESERVE - BOTTOM_RESERVE);
+            CY = TOP_RESERVE + bandH / 2;
+            const app = document.getElementById('app').getBoundingClientRect();
+            CX = app.left + app.width / 2;      // centre on the orb, between the brand dock and the log panel
+            R = Math.min(Math.min(W, H) * 0.4, (bandH / 2 - 24) / (NODE_ORBIT * (1 + ELASTIC) * 1.15));
+            RX = Math.min(R * NODE_ORBIT * NODE_STRETCH, (Math.min(CX, W - CX) - 40) / ((1 + ELASTIC) * 1.15));   // horizontal node orbit, kept on screen
         }
         window.addEventListener('resize', resize);
         resize();
 
         // Rotate a unit-sphere point by yaw (around Y) then pitch (around X), and project it.
-        function project(x, y, z, scale) {
+        function project(x, y, z, scale, sx = 1) {
             const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
             const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
             const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
             const persp = 1 / (1 - z2 * 0.25);
-            return { x: W / 2 + x1 * scale * persp, y: H / 2 - y2 * scale * persp, z: z2, p: persp };
+            return { x: CX + x1 * scale * sx * persp, y: CY - y2 * scale * persp, z: z2, p: persp };
         }
         function spherePoint(latDeg, lonDeg) {
             const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180;
@@ -185,23 +203,39 @@
             ctx.clearRect(0, 0, W, H);
 
             const hub = project(0, 0, 0, R);
-            for (const n of nodes) {
-                if (n.type === 'hub') Object.assign(n, hub, { r: 16 });
-                else Object.assign(n, project(...spherePoint(n.lat, n.lon), R), { r: 11 });
-            }
+            nodes.forEach((n, i) => {
+                if (n.type === 'hub') { Object.assign(n, hub, { r: 16 }); return; }
+                // Elastic drift: the node breathes in and out and wanders a few degrees, so it never sits still.
+                const k = 1 + ELASTIC * Math.sin(t / 1900 + i * 2.1);
+                const lat = n.lat + 5 * Math.sin(t / 2600 + i * 1.7), lon = n.lon + 7 * Math.sin(t / 3100 + i * 0.9);
+                Object.assign(n, project(...spherePoint(lat, lon), R * NODE_ORBIT * k, RX / (R * NODE_ORBIT)), { r: 11 });
+            });
 
             drawWireframe();
 
-            // Links: hub to each child, behind-the-globe links are dimmer.
-            ctx.lineWidth = 1.5;
-            for (const l of links) {
+            // Links: two phase-shifted strands twisting around the hub-to-child axis, like a DNA helix; they drift over time.
+            ctx.lineWidth = 1.4;
+            ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#ffd24a';
+            links.forEach((l, li) => {
                 const a = byId[l.source], b = byId[l.target];
-                if (!a || !b) continue;
-                ctx.strokeStyle = '#ffd24a';
+                if (!a || !b) return;
+                const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+                const nx = -dy / len, ny = dx / len;
+                const turns = Math.max(2, len / 120);
+                const sag = 0.12 * len * Math.sin(t / 2200 + li * 1.3);   // the whole strand bows slowly
                 ctx.globalAlpha = b.z >= 0 ? 0.8 : 0.25;
-                ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 8;
-                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-            }
+                for (const dir of [1, -1]) {
+                    ctx.beginPath();
+                    for (let s = 0; s <= 40; s++) {
+                        const u = s / 40, env = Math.sin(u * Math.PI);
+                        const off = env * (STRAND_AMP * dir * Math.sin(u * turns * Math.PI * 2 + t / 700 + li) + sag);
+                        const px = a.x + dx * u + nx * off, py = a.y + dy * u + ny * off;
+                        if (s) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+            });
             ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
             // Nodes, far to near

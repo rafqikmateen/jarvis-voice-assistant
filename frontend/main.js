@@ -19,6 +19,7 @@ const orb = document.getElementById('orb');
 const status = document.getElementById('status');
 const transcript = document.getElementById('transcript');
 const hudLabel = document.getElementById('hud-label');
+const brandState = document.getElementById('brand-state');
 const modelBadge = document.getElementById('model-badge');
 const sourcesLine = document.getElementById('sources');
 const tasksTitle = document.getElementById('tasks-title');
@@ -481,6 +482,8 @@ function updateHud() {
     orb.className = state;
     hudLabel.className = state;
     hudLabel.textContent = HUD_LABELS[state];
+    brandState.textContent = connected ? '(ONLINE)' : '(OFFLINE)';
+    brandState.classList.toggle('offline', !connected);
 }
 
 function setOrbState(state) { orbState = state; updateHud(); }

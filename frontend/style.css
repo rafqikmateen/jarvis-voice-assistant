@@ -32,12 +32,16 @@ body {
 #globe.hover { cursor: pointer; }
 #globe.drag { cursor: grabbing; }
 
+/* Asymmetric HUD: brand dock (left, z 5), orb in the middle, translucent log panel (right, z 10) */
 #app {
     position: relative;
     z-index: 10;
     pointer-events: none;
     text-align: center;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
+    margin-left: 260px;                  /* clears the brand dock */
+    margin-right: min(480px, 34vw);      /* clears the log panel */
 }
 
 #orb-container,
@@ -61,7 +65,7 @@ body {
     --glow: #1f7fd0;
     --cyan: #27d9ff;
     --blue: #2f7bff;
-    --hud: min(260px, 32vh, 38vw);
+    --hud: min(208px, 25.6vh, 30.4vw);   /* 80% of the previous 260px / 32vh / 38vw */
     position: relative;
     width: var(--hud);
     height: var(--hud);
@@ -170,16 +174,15 @@ body {
 }
 
 #transcript {
-    max-width: 600px;
-    margin: 0 auto;
+    flex: 1;
+    min-height: 0;
     text-align: left;
-    max-height: min(300px, 26vh);
     overflow-y: auto;
-    padding: 0 20px;
+    padding: 0 4px 0 0;
 }
 
 #transcript .user {
-    color: #888;
+    color: #9fb4c9;
     margin-bottom: 8px;
     font-size: 13px;
 }
@@ -207,12 +210,10 @@ body {
 }
 
 #sources {
-    max-width: 600px;
-    margin: 4px auto 0;
-    padding: 0 20px;
+    margin-top: 8px;
     text-align: left;
     font-size: 12px;
-    color: #666;
+    color: #8aa0b5;
 }
 
 #sources:empty {
@@ -221,16 +222,83 @@ body {
 
 #tasks {
     position: fixed;
-    top: 20px;
+    top: 116px;                          /* below the brand header */
     left: 20px;
-    width: 260px;
-    max-height: 50vh;
+    width: 220px;
+    max-height: calc(100vh - 240px);
     overflow-y: auto;
     text-align: left;
     z-index: 10;                         /* floats above the globe */
     padding: 8px 10px;
     background: rgba(10, 10, 15, 0.85);
     border-radius: 6px;
+}
+
+/* Left branding dock: neon header + model subtitle */
+#brand-dock {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 5;
+    padding: 28px 20px;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(4, 12, 22, 0.7), rgba(4, 12, 22, 0));
+    border-left: 3px solid #27d9ff;
+    box-shadow: inset 14px 0 28px -18px rgba(39, 217, 255, 0.55);
+}
+#brand-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    color: #27d9ff;
+    text-shadow: 0 0 6px #27d9ff, 0 0 18px rgba(39, 217, 255, 0.7);
+}
+#brand-state { font-size: 11px; letter-spacing: 0.12em; color: #2bf5a0; text-shadow: 0 0 8px rgba(43, 245, 160, 0.8); }
+#brand-state.offline { color: #ff6b6b; text-shadow: 0 0 8px rgba(255, 107, 107, 0.8); }
+#brand-model {
+    margin-top: 8px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: #7fb8e6;
+}
+
+/* Right text overlay: no fill, just a blur, so the network nodes shine through the text like a hologram */
+#log-panel {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    bottom: 100px;
+    width: min(440px, 30vw);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px;
+    background: transparent;
+    backdrop-filter: blur(10px) saturate(1.3);
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    border: 1px solid rgba(39, 217, 255, 0.28);
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(39, 217, 255, 0.12), inset 0 0 24px rgba(39, 217, 255, 0.06);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);   /* keeps text readable over the nodes */
+}
+#log-title {
+    margin-bottom: 10px;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #27d9ff;
+    opacity: 0.8;
+}
+body:has(#report-panel:not([hidden])) #log-panel { display: none; }   /* the report takes the right side */
+
+@media (max-width: 900px) {
+    #app { margin-left: 0; margin-right: 0; }
+    #brand-dock { width: auto; right: 0; bottom: auto; padding: 14px 16px; background: none; box-shadow: none; }
+    #brand-title { font-size: 15px; }
+    #tasks { top: 70px; }
+    #log-panel { top: auto; left: 12px; right: 12px; bottom: 100px; width: auto; height: 28vh; }
 }
 
 /* Bottom control bar: dark glass, text input then five icon buttons */
