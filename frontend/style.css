@@ -400,9 +400,9 @@ body {
 
 #hint {
     position: fixed;
-    bottom: 112px;                       /* stacked above the model badge */
-    left: var(--col-r);                  /* moves with the dock */
-    width: var(--mid-w);
+    bottom: 118px;                       /* stacked above the model badge */
+    left: var(--mid-x); transform: translateX(-50%);   /* same centre axis as the badge and control bar */
+    width: min(420px, max(240px, calc(var(--mid-w) - 40px)));
     z-index: 10;
     text-align: center;
     color: #4b5a6b;
@@ -516,10 +516,37 @@ body {
     position: fixed; bottom: 82px;
     left: var(--mid-x); transform: translateX(-50%);
     z-index: 10;
-    padding: 3px 12px; border-radius: 9px; white-space: nowrap;
+    box-sizing: border-box; width: min(420px, max(240px, calc(var(--mid-w) - 40px)));   /* widescreen panoramic strip */
+    padding: 6px 18px; border-radius: 10px; white-space: nowrap; text-align: center;
     background: rgba(13, 27, 42, 0.85); border: 1px solid rgba(79, 216, 255, 0.6); pointer-events: none;
+    box-shadow: 0 0 14px rgba(79, 216, 255, 0.25);
 }
-#model-badge { font: 11px Consolas, 'Segoe UI', monospace; letter-spacing: 0.04em; color: #9fe8ff; }
+#model-badge { display: block; overflow: hidden; text-overflow: ellipsis; font: 12px Consolas, 'Segoe UI', monospace; letter-spacing: 0.06em; color: #9fe8ff; }
+
+/* Philly Sports Core panel: second glass card in the left column, under Tasks */
+#sports-panel {
+    pointer-events: auto; flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; overflow: hidden; text-align: left;
+    background: rgba(6, 12, 20, 0.4);
+    backdrop-filter: blur(10px) saturate(1.3); -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    border: 1px solid rgba(255, 210, 74, 0.35); border-radius: 12px;
+    box-shadow: 0 0 30px rgba(255, 210, 74, 0.1), inset 0 0 24px rgba(255, 210, 74, 0.05);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+}
+#sports-panel[hidden] { display: none; }
+#sports-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; color: #ffd24a; font-size: 14px; }
+#sports-close { background: none; border: none; color: #ffd24a; font-size: 20px; line-height: 1; cursor: pointer; }
+#sports-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 10px; font-size: 12px; color: #cfe3f5; }
+.sp-team { padding: 8px 0; border-top: 1px solid rgba(255, 210, 74, 0.18); }
+.sp-team h4 { margin: 0 0 4px; color: #ffe9a6; font-size: 13px; }
+.sp-game { display: flex; gap: 6px; margin: 2px 0; }
+.sp-lbl { flex: 0 0 34px; color: #7fb8e6; }
+.sp-txt { flex: 1; }
+.sp-w { color: #39ff88; } .sp-l { color: #ff8a8a; } .sp-live { color: #ffd24a; }
+.sp-dim { color: #7a8a9b; }
+.sp-div { margin-top: 6px; color: #4a9eff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.sp-row { display: flex; justify-content: space-between; color: #9fb4c8; }
+.sp-row.sp-me { color: #ffd24a; font-weight: 600; }
 
 @keyframes robot-breathe { 0%, 100% { filter: drop-shadow(0 0 8px rgba(79, 216, 255, 0.25)); } 50% { filter: drop-shadow(0 0 20px rgba(79, 216, 255, 0.6)); } }
 
@@ -586,3 +613,42 @@ body {
     #bubble { animation: none !important; }
     #bubble-dots i { animation: none; opacity: 0.7; }
 }
+
+/* --- Module panel extras (storage, compactor, digest, oracle, network) --- */
+.sp-btn { margin: 8px 6px 0 0; padding: 5px 12px; background: rgba(255, 210, 74, 0.12); color: #ffe9a6; border: 1px solid rgba(255, 210, 74, 0.45); border-radius: 8px; font: inherit; cursor: pointer; }
+.sp-btn:hover:not(:disabled) { background: rgba(255, 210, 74, 0.25); }
+.sp-btn:disabled { opacity: 0.5; cursor: default; }
+.sp-bar { height: 6px; margin: 4px 0; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
+.sp-bar.thin { height: 3px; margin: 1px 0 5px; }
+.sp-bar i { display: block; height: 100%; background: #27d9ff; }
+.sp-bullets { margin: 0; padding: 4px 0 0 16px; line-height: 1.5; }
+.sp-bullets li { margin-bottom: 8px; color: #dff3ff; }
+.sp-input { box-sizing: border-box; width: 100%; min-height: 84px; resize: vertical; padding: 8px; background: rgba(5, 10, 18, 0.55); color: #cfe3f5; border: 1px solid rgba(74, 158, 255, 0.3); border-radius: 8px; font: 12px/1.4 inherit; outline: none; }
+.sp-log { margin-top: 8px; max-height: 46vh; overflow-y: auto; }
+.sp-turn { margin: 6px 0; padding: 6px 8px; border-left: 2px solid #4a9eff; background: rgba(255, 255, 255, 0.04); border-radius: 0 6px 6px 0; }
+.sp-turn.sp-architect { border-color: #27d9ff; }
+.sp-turn.sp-skeptic { border-color: #ff9d4a; }
+.sp-turn.sp-w, .sp-turn.sp-l { background: rgba(255, 255, 255, 0.08); }
+.sp-tree, .sp-tree ul { list-style: none; margin: 0; padding-left: 0; }
+.sp-tree ul { margin-left: 7px; padding-left: 12px; border-left: 1px solid rgba(39, 217, 255, 0.35); }
+.sp-tree li { margin: 5px 0; line-height: 1.35; word-break: break-word; }
+.sp-tree em { display: block; margin-left: 16px; font-style: normal; font-size: 11px; color: #7a8a9b; }
+.sp-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #39ff88; box-shadow: 0 0 6px #39ff88; }
+.sp-root > .sp-dot { background: #27d9ff; box-shadow: 0 0 6px #27d9ff; }
+.sp-alert { color: #ff8a8a; }
+.sp-alert .sp-dot { background: #ff3b4a; box-shadow: 0 0 8px #ff3b4a; }
+.sp-alert b { color: #ff5c6c; font-weight: 600; }
+
+/* --- WhatsApp proactive card: top of the centre deck --- */
+#wa-card {
+    position: fixed; top: 92px; left: var(--mid-x); transform: translateX(-50%); z-index: 12;
+    box-sizing: border-box; width: min(420px, max(240px, calc(var(--mid-w) - 40px))); padding: 12px 14px;
+    background: rgba(6, 18, 14, 0.55); border: 1px solid rgba(57, 255, 136, 0.45); border-radius: 12px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 0 30px rgba(57, 255, 136, 0.15); color: #dfffee; text-align: left;
+}
+#wa-card[hidden] { display: none; }
+#wa-head { display: flex; justify-content: space-between; align-items: center; color: #39ff88; font-size: 13px; letter-spacing: 0.05em; }
+#wa-dismiss { background: none; border: none; color: #39ff88; font-size: 20px; line-height: 1; cursor: pointer; }
+#wa-text { margin: 6px 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
+#wa-hint { font-size: 11px; color: #7fbf9f; }

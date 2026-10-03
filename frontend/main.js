@@ -17,11 +17,16 @@ let pageChannel = null;
 
 const orb = document.getElementById('orb');
 const status = document.getElementById('status');
-const transcript = document.getElementById('transcript');
 const hudLabel = document.getElementById('hud-label');
-const brandState = document.getElementById('brand-state');
-const modelBadge = document.getElementById('model-badge');
-const sourcesLine = document.getElementById('sources');
+const modelBadge = document.getElementById('model-badge');   // now the SVG text on the robot's belt pill
+const robot = document.getElementById('robot');
+const robotPower = document.getElementById('robot-power');
+const robotSub = document.getElementById('robot-sub');
+const robotPlain = document.getElementById('robot-plain');
+const beltPill = document.getElementById('belt-pill');
+const bubble = document.getElementById('bubble');
+const bubbleLabel = document.getElementById('bubble-label');
+const bubbleText = document.getElementById('bubble-text');
 const tasksTitle = document.getElementById('tasks-title');
 const tasksList = document.getElementById('tasks-list');
 const micToggle = document.getElementById('mic-toggle');
@@ -30,6 +35,9 @@ const textForm = document.getElementById('control-bar');
 const textInput = document.getElementById('text-input');
 const cdpToggle = document.getElementById('cdp-toggle');
 const layoutToggle = document.getElementById('layout-toggle');
+const leftCol = document.getElementById('left-col');
+const clockTime = document.getElementById('clock-time');
+const clockDate = document.getElementById('clock-date');
 const bell = document.getElementById('bell');
 const bellBadge = document.getElementById('bell-badge');
 const ear = document.getElementById('ear');
@@ -114,10 +122,47 @@ function badgeText(d) {
     return [d.model, d.effort, d.auto ? 'auto' : ''].filter(Boolean).join(' · ');
 }
 
+// Model badge: a pill on the robot's belt.
+function setBadge(text) {
+    modelBadge.textContent = text;
+    beltPill.style.display = text ? '' : 'none';
+    if (!text) return;
+}
+
+// WhatsApp reply mode: after a message card appears, the next typed or dictated line goes back through WhatsApp.
+const waCard = document.getElementById('wa-card');
+const waFrom = document.getElementById('wa-from');
+const waText = document.getElementById('wa-text');
+const waHint = document.getElementById('wa-hint');
+const WA_REPLY_WINDOW_MS = 5 * 60 * 1000;   // the reply slot closes by itself so later speech is never sent by accident
+let waReply = null;                          // { chatId, timer }
+
+function waClose() {
+    if (waReply) clearTimeout(waReply.timer);
+    waReply = null;
+    waCard.hidden = true;
+}
+
+function waOpen(data) {
+    if (waReply) clearTimeout(waReply.timer);
+    waFrom.textContent = `WhatsApp · ${data.from}`;
+    waText.textContent = data.text;           // text only: message content is never treated as HTML
+    waHint.textContent = 'Type in the box or speak your reply. It is sent to WhatsApp as-is.';
+    waCard.hidden = false;
+    waReply = { chatId: data.chatId, timer: setTimeout(waClose, WA_REPLY_WINDOW_MS) };
+    ringBell();
+}
+
+document.getElementById('wa-dismiss').addEventListener('click', waClose);
+
 function sendUserText(text) {
     if (paused) return;
+    if (waReply && text !== ACTIVATION_MESSAGE) {
+        ws.send(JSON.stringify({ type: 'wa_reply', chatId: waReply.chatId, text }));
+        waHint.textContent = 'Sending…';
+        return;
+    }
     activeReplyId = ++replyCounter;
-    sourcesLine.textContent = '';
     ws.send(JSON.stringify({ text, id: activeReplyId }));
 }
 
@@ -144,18 +189,21 @@ function connect() {
         }
         if (data.type === 'response') {
             if (data.id !== activeReplyId) return;   // cancelled or superseded reply
-            if (data.model) modelBadge.textContent = badgeText(data);   // model, effort and "auto" marker of this reply
-            addTranscript('jarvis', data.text);   // 'jarvis' is only the CSS class name
+            if (data.model) setBadge(badgeText(data));   // model, effort and "auto" marker of this reply
+            bubbleStart(data.text, !!(data.audio && data.audio.length > 0));
             if (data.audio && data.audio.length > 0) {
                 queueAudio(data.audio);
             } else {
                 setOrbState('idle');
                 setTimeout(startListening, 500);
             }
+        } else if (data.type === 'audio') {
+            // later chunks of a reply whose first chunk already started playing
+            if (data.id === activeReplyId && data.audio) queueAudio(data.audio);
         } else if (data.type === 'status') {
             status.textContent = data.text;
         } else if (data.type === 'hello') {
-            modelBadge.textContent = badgeText(data);   // badge text comes from the server
+            setBadge(badgeText(data));   // badge text comes from the server
             if (data.name) {
                 assistantName = data.name;
                 document.title = assistantName;
@@ -163,9 +211,23 @@ function connect() {
                 if (coreName) coreName.textContent = assistantName.toUpperCase();
             }
         } else if (data.type === 'sources') {
-            if (data.id === activeReplyId) sourcesLine.textContent = `Sources: ${data.titles.join(', ')}`;
         } else if (data.type === 'tasks') {
             renderTasks(data.tasks);
+        } else if (data.type === 'wa_message') {
+            waOpen(data);
+        } else if (data.type === 'wa_sent') {
+            setOrbState('idle');
+            if (data.ok) {
+                waText.textContent = `You: ${data.text}`;
+                waHint.textContent = 'Sent ✓';
+                if (waReply) clearTimeout(waReply.timer);
+                waReply = null;
+                setTimeout(() => { if (!waReply) waCard.hidden = true; }, 4000);
+            } else {
+                waHint.textContent = 'Could not send. Try again, or dismiss the card.';
+            }
+            status.textContent = 'Click the robot to speak';
+            setTimeout(startListening, 500);
         } else if (data.type === 'market_report') {
             showMarketReport(data.html, data.id);
             ringBell();
@@ -322,7 +384,6 @@ function flushPendingSpeech() {
     const text = pendingFinal.trim();
     pendingFinal = '';
     if (!text) return;
-    addTranscript('user', text);
     setOrbState('thinking');
     status.textContent = `${assistantName} is thinking...`;
     sendUserText(text);
@@ -353,7 +414,6 @@ function cancelReply() {
         ws.send(JSON.stringify({ type: 'cancel', id: activeReplyId }));
     }
     activeReplyId = null;
-    sourcesLine.textContent = '';
     clearPendingSpeech();
     audioQueue = [];
     if (currentAudio) {
@@ -408,7 +468,6 @@ textForm.addEventListener('submit', (e) => {
     if (!text || paused || !ws || ws.readyState !== WebSocket.OPEN) return;
     textInput.value = '';
     cancelReply();
-    addTranscript('user', text);
     setOrbState('thinking');
     status.textContent = `${assistantName} is thinking...`;
     sendUserText(text);
@@ -428,12 +487,24 @@ cdpToggle.addEventListener('click', async () => {
     }
 });
 
-// Monitor: show or hide the background globe.
+// Monitor: show or hide the left column (Tasks and Transcript). The clock stays.
 layoutToggle.addEventListener('click', () => {
-    const globe = document.getElementById('globe');
-    globe.hidden = !globe.hidden;
-    layoutToggle.setAttribute('aria-pressed', String(globe.hidden));
+    leftCol.hidden = !leftCol.hidden;
+    layoutToggle.setAttribute('aria-pressed', String(leftCol.hidden));
 });
+
+// Clock: browser time only, no network. 24-hour "21:36:30" and a dimmed date line like "02-OCT-26".
+function tickClock() {
+    const d = new Date();
+    const z = n => String(n).padStart(2, '0');
+    const time = `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+    const mon = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
+    const date = `${z(d.getDate())}-${mon}-${z(d.getFullYear() % 100)}`;
+    if (clockTime.textContent !== time) clockTime.textContent = time;
+    if (clockDate.textContent !== date) clockDate.textContent = date;
+}
+tickClock();
+setInterval(tickClock, 1000);
 
 // Bell: flashes and counts whenever a reply or report finishes; clicking clears it.
 function ringBell() {
@@ -451,7 +522,7 @@ bell.addEventListener('click', () => {
 });
 
 // Ear: green while recognition is actually running with the mic on.
-setInterval(() => ear.classList.toggle('on', !paused && micOn && isListening), 250);
+setInterval(() => { ear.classList.toggle('on', !paused && micOn && isListening); updateRobot(); }, 250);
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') interruptSpeech();
@@ -461,7 +532,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-orb.addEventListener('click', () => {
+function orbClick() {
     if (paused) return;
     if (isPlaying || activeReplyId !== null) { interruptSpeech(); return; }
     if (isListening) {
@@ -472,7 +543,9 @@ orb.addEventListener('click', () => {
     } else {
         startListening();
     }
-});
+}
+orb.addEventListener('click', orbClick);
+robot.addEventListener('click', orbClick);   // the robot stops speech exactly like the old orb
 
 const HUD_LABELS = { idle: 'ONLINE', listening: 'LISTENING', thinking: 'THINKING', speaking: 'SPEAKING', offline: 'OFFLINE' };
 
@@ -482,8 +555,21 @@ function updateHud() {
     orb.className = state;
     hudLabel.className = state;
     hudLabel.textContent = HUD_LABELS[state];
-    brandState.textContent = connected ? '(ONLINE)' : '(OFFLINE)';
-    brandState.classList.toggle('offline', !connected);
+    updateRobot();
+}
+
+// Robot: power follows the WebSocket; state follows orbState, but a muted mic beats every other state.
+const SUB_LABELS = { listening: 'LISTENING', thinking: 'THINKING', speaking: 'SPEAKING', 'mic-off': 'MIC OFF' };
+function updateRobot() {
+    const power = connected ? 'online' : 'offline';
+    const rstate = !micOn ? 'mic-off' : orbState;
+    const sub = SUB_LABELS[rstate] || '';
+    const plain = [power.toUpperCase(), sub].filter(Boolean).join(' · ');
+    if (robot.dataset.power !== power) { robot.dataset.power = power; robotPlain.dataset.power = power; }
+    if (robot.dataset.state !== rstate) robot.dataset.state = rstate;
+    if (robotPower.textContent !== power.toUpperCase()) robotPower.textContent = power.toUpperCase();
+    if (robotSub.textContent !== sub) robotSub.textContent = sub;
+    if (robotPlain.textContent !== plain) robotPlain.textContent = plain;
 }
 
 function setOrbState(state) { orbState = state; updateHud(); }
@@ -498,14 +584,6 @@ function renderTasks(tasks) {
     }));
 }
 
-function addTranscript(role, text) {
-    const div = document.createElement('div');
-    div.className = role;
-    div.textContent = role === 'user' ? `You: ${text}` : `${assistantName}: ${text}`;
-    transcript.appendChild(div);
-    transcript.scrollTop = transcript.scrollHeight;
-}
-
 // Announce this page; any older page in the same browser pauses itself.
 try {
     pageChannel = new BroadcastChannel(PAGE_CHANNEL_NAME);
@@ -517,3 +595,65 @@ try {
 
 updateHud();
 connect();
+
+// --- Speech bubble: the latest reply, beside the robot's head ---
+const BUBBLE_HOLD_MS = 8000;          // stays this long after speech ends, then fades
+const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let bubbleReply = null;               // { words, hasAudio, startedAt, played, playedAt, endedAt, p }
+let prevOrbState = 'idle';
+
+function bubbleStart(text, hasAudio) {
+    const now = Date.now();
+    bubbleReply = { words: String(text).split(/\s+/).filter(Boolean), hasAudio, startedAt: now,
+                    played: false, playedAt: 0, endedAt: hasAudio ? null : now, p: 0 };   // a new reply replaces the old one
+    bubbleTick();
+}
+
+function bubbleTick() {
+    const now = Date.now();
+    if (orbState === 'thinking' && prevOrbState !== 'thinking') bubbleReply = null;   // new turn: dots replace the old reply
+    prevOrbState = orbState;
+    const r = bubbleReply;
+    let text = '', live = false;
+    if (r) {
+        if (r.hasAudio && !r.played && isPlaying) { r.played = true; r.playedAt = now; }
+        if (r.hasAudio && r.endedAt === null &&
+            ((r.played && !isPlaying && audioQueue.length === 0) || (!r.played && now - r.startedAt > 15000))) r.endedAt = now;
+        live = r.endedAt === null || now - r.endedAt < BUBBLE_HOLD_MS;
+        let p = 1;                                         // reduced motion, no audio, or finished: full text at once
+        if (r.hasAudio && r.endedAt === null && !reduceMotionQuery.matches) {
+            const a = currentAudio;
+            if (r.played && a && isFinite(a.duration) && a.duration > 0) p = Math.min(1, a.currentTime / a.duration);
+            else if (r.played) p = now - r.playedAt > 1000 ? 1 : 0;   // duration unknown: wait a second, then show it all
+            else p = now - r.startedAt > 1500 ? 1 : 0;                // speech has not started (blocked?): show it all
+        }
+        r.p = Math.max(r.p, p);                            // words never un-type
+        text = r.words.slice(0, Math.ceil(r.p * r.words.length)).join(' ');
+    }
+    const dots = (orbState === 'thinking' && !r) || (!!r && live && !text);
+    const show = connected && (dots || (!!r && live));
+    const set = (k, v) => { if (bubble.dataset[k] !== v) bubble.dataset[k] = v; };
+    set('show', show ? '1' : '0'); set('dots', dots ? '1' : '0'); set('speaking', orbState === 'speaking' ? '1' : '0');
+    if (bubbleText.textContent !== text) bubbleText.textContent = text;
+    const name = assistantName.toUpperCase();
+    if (bubbleLabel.textContent !== name) bubbleLabel.textContent = name;
+}
+setInterval(bubbleTick, 100);
+
+// Placement from the robot's real box in the DOM: the bubble's right edge stops 16 px short of the robot's left edge,
+// so it never covers the face or shoulders. It keeps clear of the Tasks column and shrinks (min 160 px) when space is tight.
+// --bubble-left tells the report panel where the bubble starts.
+function layoutBubble() {
+    const r = robot.getBoundingClientRect();
+    if (!r.width) { document.documentElement.style.removeProperty('--bubble-left'); return; }   // robot hidden (< 700 px)
+    const minLeft = 272;   // just right of the left column (260 px)
+    const w = Math.max(160, Math.min(340, window.innerWidth * 0.3, r.left - 16 - minLeft));
+    const left = Math.max(8, r.left - 16 - w);
+    bubble.style.width = w + 'px';
+    bubble.style.left = left + 'px';
+    bubble.style.top = (r.top + r.height * 0.03) + 'px';
+    document.documentElement.style.setProperty('--bubble-left', left + 'px');
+}
+window.addEventListener('resize', layoutBubble);
+if (window.ResizeObserver) new ResizeObserver(layoutBubble).observe(robot);
+layoutBubble();

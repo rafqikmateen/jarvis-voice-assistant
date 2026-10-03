@@ -3,3 +3,12 @@
 __pycache__/
 *.pyc
 config.json
+tavily-usage.json
+tavily-usage.json.tmp
+
+# local-only data
+whatsapp/node_modules/
+whatsapp/.wwebjs_auth/
+whatsapp/.wwebjs_cache/
+known-devices.json
+maintenance-state.json

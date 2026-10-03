@@ -2,6 +2,8 @@
   "anthropic_api_key": "YOUR_ANTHROPIC_API_KEY",
   "elevenlabs_api_key": "YOUR_ELEVENLABS_API_KEY",
   "elevenlabs_voice_id": "YOUR_VOICE_ID",
+  "tavily_api_key": "",
+  "whatsapp_enabled": false,
   "user_name": "YOUR_NAME",
   "user_address": "Sir",
   "city": "YOUR_CITY",

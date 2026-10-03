@@ -78,6 +78,13 @@
             <div id="tasks-title">Tasks (0)</div>
             <ul id="tasks-list"></ul>
         </div>
+        <div id="sports-panel" hidden>
+            <div id="sports-bar">
+                <span id="sports-title">Philly Sports Core</span>
+                <button id="sports-close" type="button" aria-label="Close sports panel" title="Close">&times;</button>
+            </div>
+            <div id="sports-body"></div>
+        </div>
     </div>
     <div id="report-panel" hidden>
         <div id="report-bar">
@@ -107,6 +114,11 @@
         </button>
     </form>
     <div id="belt-pill" style="display:none"><span id="model-badge"></span></div>
+    <div id="wa-card" hidden>
+        <div id="wa-head"><span id="wa-from">WhatsApp</span><button id="wa-dismiss" type="button" aria-label="Dismiss" title="Dismiss">&times;</button></div>
+        <div id="wa-text"></div>
+        <div id="wa-hint"></div>
+    </div>
     <div id="hint">Drag a node - click a yellow node for its portfolio</div>
     <div id="broker-popup" hidden>
         <div id="broker-card">
@@ -156,14 +168,17 @@
         const bubbleEl = document.getElementById('bubble');
         const robotEl = document.getElementById('robot');
         let exclude = null;   // speech-bubble keep-out zone, read from the DOM every frame
-        const isClickable = n => n.type === 'broker' || n.type === 'market-account';
+        const NODE_OPEN_TYPES = { sports: 1, storage: 1, compactor: 1, digest: 1, oracle: 1, netmap: 1 };
+        const isClickable = n => n.type === 'broker' || n.type === 'market-account' || n.type in NODE_OPEN_TYPES;
         const NODE_STYLE = {   // r: radius; color: glow, text: label
             hub: { r: 12, color: '#27d9ff', text: '#bff4ff', font: '600 14px' },
             pipeline: { r: 9, color: '#27d9ff', text: '#bff4ff', font: '12px' },
             broker: { r: 11, color: '#ffd24a', text: '#ffe9a6', font: '13px' },
         };
         NODE_STYLE['market-account'] = NODE_STYLE.broker;
-        const styleOf = n => NODE_STYLE[n.type] || NODE_STYLE.broker;
+        Object.keys(NODE_OPEN_TYPES).forEach(k => { NODE_STYLE[k] = NODE_STYLE.broker; });
+        const ALERT_STYLE = { r: 11, color: '#ff3b4a', text: '#ffb3b8', font: '13px' };
+        const styleOf = n => n.alert ? ALERT_STYLE : (NODE_STYLE[n.type] || NODE_STYLE.broker);
 
         function resize() {
             const old = area;
@@ -206,9 +221,12 @@
             const pdx = pipe ? 220 * Math.cos(PHI) : 0, pdy = pipe ? 220 * Math.sin(PHI) : 0;   // no pipeline: brokers fan out from the hub
             const off = new Map();                    // node -> [dx, dy] from the hub at full size
             if (pipe) off.set(pipe, [pdx, pdy]);
+            const ring = rest.length > 5;   // many children: a full ring around the hub instead of a 120-degree arc
+            const R = Math.max(230, rest.length * 26);
             rest.forEach((n, i) => {
-                const a = PHI + (rest.length > 1 ? (i / (rest.length - 1) - 0.5) * Math.PI * 2 / 3 : 0);
-                off.set(n, [pdx + 230 * Math.cos(a), pdy + 230 * Math.sin(a)]);
+                const a = ring ? -Math.PI / 2 + i / rest.length * Math.PI * 2
+                    : PHI + (rest.length > 1 ? (i / (rest.length - 1) - 0.5) * Math.PI * 2 / 3 : 0);
+                off.set(n, [pdx + R * Math.cos(a), pdy + R * Math.sin(a)]);
             });
             const pts = [[0, 0], ...off.values()];
             const minX = Math.min(...pts.map(p => p[0])), maxX = Math.max(...pts.map(p => p[0]));
@@ -420,7 +438,191 @@
 
         function closePopup() { popup.hidden = true; popupBody.replaceChildren(); }
 
+        // --- Module panel (left-side glass): Philly Sports, storage, compactor, Cartagena, oracle and network nodes ---
+        // Everything from the server is written with textContent only, never as HTML.
+        const sportsPanel = document.getElementById('sports-panel');
+        const sportsBody = document.getElementById('sports-body');
+        const panelTitle = document.getElementById('sports-title');
+        let panelToken = 0;   // a newer panel open makes older async renders stop
+        const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+        const fmtWhen = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+        const fmtBytes = b => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? Math.round(b / 1e6) + ' MB' : Math.round(b / 1e3) + ' KB';
+        const getJSON = async (url, opts) => (await fetch(url, opts)).json();
+
+        function openPanel(title, loading) {
+            const left = document.getElementById('left-col'), toggle = document.getElementById('layout-toggle');
+            if (left.hidden && toggle) toggle.click();   // the panel lives in the left column
+            panelTitle.textContent = title;
+            sportsPanel.hidden = false;
+            sportsBody.replaceChildren(el('div', 'sp-dim', loading || 'Loading…'));
+            return ++panelToken;
+        }
+        const show = (token, ...nodes) => { if (token === panelToken) sportsBody.replaceChildren(...nodes); };
+        const note = (token, text) => show(token, el('div', 'sp-dim', text));
+        const button = (label, fn) => { const b = el('button', 'sp-btn', label); b.type = 'button'; b.addEventListener('click', fn); return b; };
+
+        function sportsGame(label, g) {
+            const row = el('div', 'sp-game');
+            row.append(el('span', 'sp-lbl', label));
+            if (!g) { row.append(el('span', 'sp-dim', '-')); return row; }
+            const txt = g.state === 'pre' ? `${g.opp} · ${fmtWhen(g.date)}`
+                : `${g.opp} · ${g.score}${g.result ? ' ' + g.result : ''} · ${g.state === 'in' ? 'LIVE ' : ''}${g.status}`;
+            row.append(el('span', 'sp-txt' + (g.result ? ' sp-' + g.result.toLowerCase() : '') + (g.state === 'in' ? ' sp-live' : ''), txt));
+            return row;
+        }
+
+        async function openSports() {
+            const tk = openPanel('Philly Sports Core', 'Loading live scores…');
+            try {
+                const d = await getJSON('/graph/sports');
+                if (!d.teams.length) return note(tk, 'No Philadelphia teams are in season with games scheduled right now.');
+                const frag = d.teams.map(t => {
+                    const box = el('section', 'sp-team');
+                    box.append(el('h4', '', t.name));
+                    if (t.error) box.append(el('div', 'sp-dim', t.error));
+                    box.append(sportsGame('Last', t.last), sportsGame('Next', t.next));
+                    if (t.division) {
+                        box.append(el('div', 'sp-div', t.division.name));
+                        t.division.rows.forEach(r => {
+                            const line = el('div', 'sp-row' + (r.me ? ' sp-me' : ''));
+                            line.append(el('span', '', r.team), el('span', '', r.record));
+                            box.append(line);
+                        });
+                    }
+                    return box;
+                });
+                show(tk, ...frag);
+            } catch (e) { note(tk, 'Could not reach the server.'); }
+        }
+
+        async function openStorage() {
+            const tk = openPanel('Local Storage Auditor', 'Scanning AppData and caches… up to 30 s.');
+            try {
+                const d = await getJSON('/maint/audit');
+                const box = el('section', 'sp-team');
+                const pct = Math.round(d.disk.used / d.disk.total * 100);
+                box.append(el('div', 'sp-txt', `Disk ${fmtBytes(d.disk.used)} of ${fmtBytes(d.disk.total)} used (${pct}%) · ${fmtBytes(d.disk.free)} free`));
+                const bar = el('div', 'sp-bar'); const fill = el('i'); fill.style.width = pct + '%'; bar.append(fill); box.append(bar);
+                box.append(el('div', 'sp-div', 'Largest app folders'));
+                const max = Math.max(1, ...d.top.map(r => r.bytes));
+                d.top.forEach(r => {
+                    const row = el('div', 'sp-row' + (r.cache ? ' sp-me' : ''));
+                    row.append(el('span', '', r.name + (r.cache ? ' ★' : '')), el('span', '', fmtBytes(r.bytes)));
+                    box.append(row);
+                    const b = el('div', 'sp-bar thin'); const f = el('i'); f.style.width = Math.max(2, r.bytes / max * 100) + '%'; b.append(f); box.append(b);
+                });
+                box.append(el('div', 'sp-dim', `★ cache/temp/log-like: ${fmtBytes(d.cacheBytes)}. Read-only audit; nothing is deleted.${d.partial ? ' Partial scan (time limit).' : ''}`));
+                show(tk, box);
+            } catch (e) { note(tk, 'Audit failed.'); }
+        }
+
+        function compactorCard(d) {
+            const box = el('section', 'sp-team');
+            box.append(el('div', 'sp-txt', `Runs automatically: ${d.schedule}.`));
+            box.append(el('div', 'sp-div', 'Databases found'));
+            box.append(el('div', 'sp-dim', d.databases.length ? d.databases.join(', ') : 'None yet. Any SQLite file in the Jarvis folder (or data/, logs/) is picked up.'));
+            const st = d.state || {};
+            box.append(el('div', 'sp-div', 'Last run'));
+            box.append(el('div', 'sp-txt', st.last ? `${fmtWhen(st.last)} (${st.trigger})` : 'Never'));
+            (st.results || []).forEach(r => {
+                const row = el('div', 'sp-row' + (r.ok ? '' : ' sp-l'));
+                row.append(el('span', '', r.file), el('span', '', r.ok ? `${fmtBytes(r.before)} → ${fmtBytes(r.after)}` : 'failed'));
+                box.append(row);
+            });
+            return box;
+        }
+        async function openCompactor() {
+            const tk = openPanel('Database Compactor');
+            try {
+                const d = await getJSON('/maint/compactor');
+                const box = compactorCard(d);
+                box.append(button('Compact now', async () => {
+                    note(tk, 'Vacuuming and reindexing…');
+                    try { await getJSON('/maint/compactor/run', { method: 'POST' }); show(tk, compactorCard(await getJSON('/maint/compactor'))); }
+                    catch (e) { note(tk, 'Compaction failed.'); }
+                }));
+                show(tk, box);
+            } catch (e) { note(tk, 'Could not reach the server.'); }
+        }
+
+        async function openCartagena() {
+            const tk = openPanel('Daily Cartagena Digest', 'Gathering Bolívar events, news and COP rates…');
+            try {
+                const d = await getJSON('/digest/cartagena');
+                if (!d.ok) return note(tk, d.note || 'Digest unavailable.');
+                const ul = el('ul', 'sp-bullets');
+                d.bullets.forEach(b => ul.append(el('li', '', b)));
+                show(tk, ul);
+            } catch (e) { note(tk, 'Digest unavailable.'); }
+        }
+
+        function openOracle() {
+            openPanel('AI Self-Dialogue Oracle');
+            const ta = el('textarea', 'sp-input'); ta.placeholder = 'Paste a strategy. Two personas will debate it until they agree.'; ta.maxLength = 2000;
+            const log = el('div', 'sp-log');
+            const go = button('Start debate', async () => {
+                const text = ta.value.trim(); if (!text) return;
+                go.disabled = true; log.replaceChildren();
+                try {
+                    const res = await fetch('/oracle/debate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+                    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
+                    for (;;) {
+                        const { done, value } = await reader.read(); if (done) break;
+                        buf += dec.decode(value, { stream: true });
+                        let i;
+                        while ((i = buf.indexOf('\n')) >= 0) {
+                            const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line) continue;
+                            const m = JSON.parse(line);
+                            const row = el('div', 'sp-turn ' + (m.final ? (m.consensus ? 'sp-w' : 'sp-l') : m.speaker === 'Skeptic' ? 'sp-skeptic' : 'sp-architect'));
+                            row.append(el('b', '', m.speaker + ': '), document.createTextNode(m.text));
+                            log.append(row); log.scrollTop = log.scrollHeight;
+                        }
+                    }
+                } catch (e) { log.append(el('div', 'sp-l', 'Debate interrupted.')); }
+                go.disabled = false;
+            });
+            sportsBody.replaceChildren(ta, go, log);
+        }
+
+        let netNode = null;
+        async function openNetwork() {
+            const tk = openPanel('Network Device Mapper', 'Pinging the Wi-Fi subnet… about 10 s.');
+            try {
+                const d = await getJSON('/net/scan');
+                if (!d.ok) return note(tk, d.note || 'Scan failed.');
+                if (netNode) netNode.alert = d.unknown > 0;   // the node itself turns red while unknown devices are present
+                const box = el('section', 'sp-team');
+                const head = el('div', 'sp-txt', `${d.subnet} · ${d.devices.length} devices · `);
+                head.append(el('span', d.unknown ? 'sp-l' : 'sp-w', d.unknown ? `${d.unknown} unrecognized` : 'all recognized'));
+                box.append(head);
+                const gw = d.devices.find(x => x.gateway);
+                const item = x => {
+                    const li = el('li', x.known ? '' : 'sp-alert');
+                    li.append(el('span', 'sp-dot'), el('span', '', (x.label || x.host || 'device') + ' '), el('em', '', x.ip + (x.mac ? ' · ' + x.mac : '')));
+                    if (!x.known) {
+                        li.append(el('b', '', ' ⚠ unrecognized'));
+                        li.append(button('Trust', async () => {
+                            const label = prompt('Name this device', x.host || 'My device'); if (label === null) return;
+                            await getJSON('/net/trust', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mac: x.mac, label }) });
+                            openNetwork();
+                        }));
+                    }
+                    return li;
+                };
+                const tree = el('ul', 'sp-tree'), root = el('li', 'sp-root'), kids = el('ul');
+                root.append(el('span', 'sp-dot'), el('span', '', gw ? 'Router ' + gw.ip : 'Router'));
+                d.devices.filter(x => !x.gateway).forEach(x => kids.append(item(x)));
+                root.append(kids); tree.append(root); box.append(tree);
+                box.append(button('Rescan', openNetwork));
+                box.append(el('div', 'sp-dim', 'Phones that use a randomized (private) Wi-Fi address look unrecognized until trusted.'));
+                show(tk, box);
+            } catch (e) { note(tk, 'Scan failed.'); }
+        }
+        document.getElementById('sports-close').addEventListener('click', () => { sportsPanel.hidden = true; panelToken++; });
+        const NODE_OPEN = { sports: openSports, storage: openStorage, compactor: openCompactor, digest: openCartagena, oracle: openOracle, netmap: openNetwork };
+
         async function openNode(n) {
+            if (NODE_OPEN[n.type]) { if (n.type === 'netmap') netNode = n; return NODE_OPEN[n.type](); }
             popup.hidden = false;
             popupTitle.textContent = n.label;
             if (busy) return;
