@@ -10,6 +10,7 @@ import shutil
 import socket
 import sqlite3
 import subprocess
+import threading
 import time
 from collections import OrderedDict
 from datetime import datetime
@@ -178,6 +179,145 @@ async def maint_audit():
     return data
 
 
+# ---------------------------------------------------------------- Active storage cleaning (whitelisted folders only)
+def _clean_targets():
+    local = os.environ.get("LOCALAPPDATA") or ""
+    # npm: only the download cache; %APPDATA%\npm holds globally installed CLIs and is never touched.
+    return {"pip": os.path.join(local, "pip"), "ms-playwright": os.path.join(local, "ms-playwright"),
+            "npm": os.path.join(local, "npm-cache")} if local else {}
+
+
+def _targets_state():
+    rows = []
+    for tid, path in _clean_targets().items():
+        exists = os.path.isdir(path)
+        rows.append({"id": tid, "path": path, "exists": exists,
+                     "bytes": _dir_size(path, time.time() + 15)[0] if exists else 0})
+    du = shutil.disk_usage(os.environ.get("SystemDrive", "C:") + "\\")
+    return {"ok": True, "targets": rows, "disk": {"total": du.total, "used": du.used, "free": du.free}}
+
+
+SYSTEM_PURGE = [   # run in order by cmd.exe; each block is independent so one failure does not stop the rest
+    r'del /q/f/s "%TEMP%\*" & for /d %x in ("%TEMP%\*") do @rd /s /q "%x"',
+    "net stop wuauserv && net stop bits",
+    r'del /q/f/s "%windir%\SoftwareDistribution\Download\*"',
+    "net start wuauserv && net start bits",
+    "DISM /Online /Cleanup-Image /StartComponentCleanup /NoRestart",
+    "powercfg -h off",
+    "vssadmin delete shadows /all /quiet",
+    r'rd /s /q C:\$Recycle.Bin && ipconfig /flushdns && del /q/f/s C:\Windows\Prefetch\*',
+    # Browser junk: Edge and Chrome are force-closed first (this also drops Jarvis's Chrome debug session).
+    "taskkill /f /im msedge.exe >nul 2>&1",
+    "taskkill /f /im chrome.exe >nul 2>&1",
+    "timeout /t 2 /nobreak >nul",
+    r'del /q/f/s "%LocalAppData%\Microsoft\Edge\User Data\Default\Cache\Cache_Data\*" >nul 2>&1',
+    r'del /q/f/s "%LocalAppData%\Google\Chrome\User Data\Default\Cache\Cache_Data\*" >nul 2>&1',
+    r'del /q/f/s "%LocalAppData%\Microsoft\Edge\User Data\Default\Code Cache\*" >nul 2>&1',
+    r'del /q/f/s "%LocalAppData%\Google\Chrome\User Data\Default\Code Cache\*" >nul 2>&1',
+]
+purge_lock = threading.Lock()
+
+
+def _is_admin():
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _system_purge():
+    errors = []
+    if not _is_admin():
+        errors.append("not running as Administrator: service, DISM, powercfg and vssadmin steps will fail")
+    for cmd in SYSTEM_PURGE:
+        try:
+            r = subprocess.run(cmd, shell=True, capture_output=True, timeout=1800,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if cmd.startswith("timeout") and r.returncode:
+                time.sleep(2)   # timeout.exe refuses to run without a console; keep the 2 s pause anyway
+            elif r.returncode and not cmd.startswith("taskkill"):   # taskkill exits non-zero when the browser isn't running
+                errors.append(f"'{cmd.split()[0]} ...' exited with code {r.returncode}")
+        except subprocess.TimeoutExpired:
+            errors.append(f"'{cmd.split()[0]} ...' timed out")
+    time.sleep(5)   # recovery pause after the browser caches are emptied
+    try:   # relaunch Edge on the dashboard so the page reloads hands-free
+        subprocess.Popen('start "" msedge.exe "http://localhost:8340"', shell=True,
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except OSError:
+        errors.append("could not relaunch Edge")
+    return errors
+
+
+def _clean_sync(target):
+    targets = _clean_targets()
+    ids = list(targets) if target == "all" else [target]
+    errors = []
+    if target == "all":
+        if not purge_lock.acquire(blocking=False):
+            return {**_targets_state(), "errors": ["a purge is already running"]}
+        try:
+            errors += _system_purge()
+        finally:
+            purge_lock.release()
+    for tid in ids:
+        path = targets[tid]
+        if os.path.isdir(path):
+            subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", path], capture_output=True, timeout=300)
+            if os.path.isdir(path):
+                errors.append(f"{tid}: some files are in use and could not be removed")
+    audit_cache.update(t=0.0, data=None)
+    return {**_targets_state(), "errors": errors}
+
+
+@router.get("/api/storage/targets")
+async def storage_targets():
+    return await asyncio.to_thread(_targets_state)
+
+
+@router.post("/api/storage/clean")
+async def storage_clean(request: Request):
+    try:
+        target = str((await request.json()).get("target", ""))
+    except Exception:
+        target = ""
+    if target != "all" and target not in _clean_targets():
+        return Response(json.dumps({"ok": False, "error": "unknown target"}), status_code=400, media_type="application/json")
+    return await asyncio.to_thread(_clean_sync, target)
+
+
+# ---------------------------------------------------------------- Master off switch
+def _listening_pids(port):
+    out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+    pids = set()
+    for line in out.splitlines():
+        p = line.split()
+        if len(p) >= 5 and p[3] == "LISTENING" and p[1].endswith(":%d" % port) and p[4].isdigit():
+            pids.add(int(p[4]))
+    return pids
+
+
+def _kill_channels():
+    time.sleep(0.8)   # let the HTTP response reach the browser
+    me = os.getpid()
+    others = {pid for port in (8004, 8340) for pid in _listening_pids(port)} - {me}
+    for pid in others:
+        subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True)   # polite request first
+    deadline = time.time() + 3
+    while time.time() < deadline and any(_listening_pids(p) - {me} for p in (8004, 8340)):
+        time.sleep(0.3)
+    for pid in {pid for port in (8004, 8340) for pid in _listening_pids(port)} - {me}:
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    subprocess.run(["taskkill", "/F", "/IM", "cmd.exe"], capture_output=True)
+    os._exit(0)   # this is the server on 8340
+
+
+@router.post("/api/kill")
+async def kill_channels():
+    threading.Thread(target=_kill_channels, daemon=True).start()
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- Automated Database Compactor
 COMPACT_STATE = os.path.join(HERE, "maintenance-state.json")
 compact_lock = asyncio.Lock()
@@ -269,16 +409,65 @@ async def _cop_line():
         return ""
 
 
+FALLBACK_PLACE = {"city": "Cartagena", "country": "Colombia", "lat": 10.3997, "lon": -75.5144, "tz": "America/Bogota"}
+_place_cache = {"t": 0.0, "place": None}
+WMO_TEXT = {0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog",
+            51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 56: "Freezing drizzle", 57: "Freezing drizzle",
+            61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Freezing rain",
+            71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains", 80: "Light showers", 81: "Showers",
+            82: "Violent showers", 85: "Snow showers", 86: "Heavy snow showers", 95: "Thunderstorm",
+            96: "Thunderstorm with hail", 99: "Thunderstorm with hail"}
+
+
+async def _locate():
+    """City of this machine's public IP via ipwho.is (no key); cached 1h; falls back to Cartagena."""
+    if _place_cache["place"] and time.time() - _place_cache["t"] < 3600:
+        return _place_cache["place"]
+    place = FALLBACK_PLACE
+    try:
+        j = (await ctx["http"].get("https://ipwho.is/", timeout=8)).json()
+        if j.get("success") and j.get("latitude") is not None:
+            place = {"city": j.get("city") or "Your location", "country": j.get("country") or "",
+                     "lat": j["latitude"], "lon": j["longitude"],
+                     "tz": (j.get("timezone") or {}).get("id") or "auto"}
+    except Exception:
+        pass
+    _place_cache.update(t=time.time(), place=place)
+    return place
+
+
+async def _weather_line():
+    """Live conditions for the machine's detected location from Open-Meteo (no API key). None on failure."""
+    try:
+        place = await _locate()
+        r = await ctx["http"].get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={"latitude": place["lat"], "longitude": place["lon"], "timezone": place["tz"],
+                    "current": "temperature_2m,relative_humidity_2m,precipitation,weather_code"},
+            timeout=10)
+        r.raise_for_status()
+        c = r.json()["current"]
+        temp_c, hum, precip = c["temperature_2m"], c["relative_humidity_2m"], c["precipitation"]
+        return {"location": ", ".join(x for x in (place["city"], place["country"]) if x),
+                "temp": f"{temp_c:.1f}°C ({temp_c * 9 / 5 + 32:.0f}°F)",
+                "condition": WMO_TEXT.get(c.get("weather_code"), "Unknown"),
+                "humidity": f"{hum:.0f}%",
+                "precip": f"{precip:g} mm"}
+    except Exception:
+        return None
+
+
 @router.get("/digest/cartagena")
 async def cartagena_digest():
     key = datetime.now().strftime("%Y-%m-%d")
     if digest_cache["data"] and digest_cache["key"] == key and time.time() - digest_cache["t"] < DIGEST_SECONDS:
-        return digest_cache["data"]
+        # Bullets are cached for hours; weather is cheap, so keep it live.
+        return {**digest_cache["data"], "weather": await _weather_line()}
     qs = ["Cartagena Bolívar Colombia events this week", "Cartagena Bolívar Colombia local news today"]
     blocks = await asyncio.gather(*(ctx["quiet_search"](q) for q in qs), return_exceptions=True)
     text = "\n".join(b[0] for b in blocks if not isinstance(b, Exception) and b and b[0])
-    cop = await _cop_line()
-    if not text and not cop:
+    cop, weather = await asyncio.gather(_cop_line(), _weather_line())
+    if not text and not cop and not weather:
         return {"ok": False, "note": "No data sources reachable right now."}
     system = ("You write a daily digest for Cartagena, Bolívar, Colombia. Reply with EXACTLY 3 lines, each starting with "
               "'- '. Line 1: upcoming events. Line 2: local update. Line 3: currency. Max 25 words per line, plain "
@@ -292,7 +481,7 @@ async def cartagena_digest():
     bullets = [re.sub(r"^[-•*\s]+", "", ln).strip() for ln in raw.splitlines() if ln.strip()][:3]
     data = {"ok": True, "bullets": bullets, "date": key}
     digest_cache.update(t=time.time(), key=key, data=data)
-    return data
+    return {**data, "weather": weather}
 
 
 # ---------------------------------------------------------------- AI Self-Dialogue Oracle
