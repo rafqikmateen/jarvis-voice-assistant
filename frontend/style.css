@@ -15,8 +15,8 @@ body {
     align-items: center;
 }
 
-/* Layers: globe canvas (1) under the HUD, tasks, report and control bar (10); portfolio popup (20) on top.
-   #app spans the screen but lets pointer events through to the globe; its interactive children opt back in. */
+/* Layers: node canvas (1) under the HUD, tasks, report and control bar (10); portfolio popup (20) on top.
+   #app spans the screen but lets pointer events through to the canvas; its interactive children opt back in. */
 #globe {
     position: fixed;
     top: 0;
@@ -26,13 +26,20 @@ body {
     z-index: 1;
     pointer-events: auto;
     touch-action: none;
-    cursor: grab;
 }
 #globe[hidden] { display: none; }
 #globe.hover { cursor: pointer; }
+#globe.grab { cursor: grab; }
 #globe.drag { cursor: grabbing; }
 
-/* Asymmetric HUD: brand dock (left, z 5), orb in the middle, translucent log panel (right, z 10) */
+/* HUD layer: lets pointer events through to the node canvas; the old orb is hidden until it is deleted. */
+:root {
+    --robot-w: calc(92vh * 485 / 1203);                 /* robot width; shrinks in the media queries at the end */
+    --col-r: 260px;                                     /* right edge of the left column (20px + 240px) */
+    --free-w: calc(100vw - 3vw - var(--robot-w));       /* window width to the left of the robot */
+    --mid-w: calc(var(--free-w) - var(--col-r));        /* gap between the left column and the robot */
+    --mid-x: calc(var(--col-r) + var(--mid-w) / 2);     /* centre of that gap */
+}
 #app {
     position: relative;
     z-index: 10;
@@ -40,14 +47,9 @@ body {
     text-align: center;
     flex: 1;
     min-width: 0;
-    margin-left: 260px;                  /* clears the brand dock */
-    margin-right: min(480px, 34vw);      /* clears the log panel */
 }
 
-#orb-container,
-#transcript,
-#sources,
-#model-badge {
+#orb-container {
     pointer-events: auto;
 }
 
@@ -55,7 +57,7 @@ body {
    Each ring is its own SVG layer; only transform/opacity are animated. */
 #orb-container {
     cursor: pointer;
-    display: inline-block;
+    display: none;          /* old arc-reactor HUD: hidden until the robot (Step 3) replaces it */
     margin-bottom: 12px;
 }
 
@@ -136,6 +138,7 @@ body {
 
 /* Status label + model badge */
 #hud-label {
+    display: none;          /* hidden with the HUD until Step 3 */
     font-size: 15px;
     font-weight: 600;
     letter-spacing: 0.3em;
@@ -149,48 +152,20 @@ body {
 #hud-label.speaking  { color: #2bf5a0; }
 #hud-label.offline   { color: #ff6b6b; }
 
-#model-badge {
-    display: inline-block;
-    margin: 8px 0 14px;
-    padding: 2px 10px;
-    border: 1px solid #1a3a5c;
-    border-radius: 10px;
-    background: #0d1b2a;
-    color: #7fb8e6;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-}
-#model-badge:empty { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
     .ring, .halo { animation: none !important; will-change: auto; }
 }
 
 #status {
-    font-size: 14px;
+    position: fixed;        /* just under the robot's feet */
+    bottom: 1.2vh;
+    right: 3vw;
+    width: calc(88vh * 400 / 900);
+    text-align: center;
+    font-size: 12px;
     color: #666;
-    margin-bottom: 20px;
     min-height: 20px;
-}
-
-#transcript {
-    flex: 1;
-    min-height: 0;
-    text-align: left;
-    overflow-y: auto;
-    padding: 0 4px 0 0;
-}
-
-#transcript .user {
-    color: #9fb4c9;
-    margin-bottom: 8px;
-    font-size: 13px;
-}
-
-#transcript .jarvis {
-    color: #4a9eff;
-    margin-bottom: 16px;
-    font-size: 14px;
 }
 
 /* Shown when another tab has taken over; this page is then paused for good */
@@ -209,109 +184,50 @@ body {
     text-align: center;
 }
 
-#sources {
-    margin-top: 8px;
-    text-align: left;
-    font-size: 12px;
-    color: #8aa0b5;
+/* Clock (top-left): large thin monospace time, small dimmed date */
+#clock { position: fixed; top: 16px; left: 24px; z-index: 10; pointer-events: none; text-align: left; }
+#clock-time {
+    font: 200 34px/1.1 'Cascadia Mono', Consolas, 'Courier New', monospace;
+    font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+    color: #dff6ff; text-shadow: 0 0 12px rgba(79, 216, 255, 0.45);
+}
+#clock-date {
+    margin-top: 6px; font: 700 24px/1.2 'Cascadia Mono', Consolas, 'Courier New', monospace; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #bff3ff; text-shadow: 0 0 10px rgba(79, 216, 255, 0.7);
 }
 
-#sources:empty {
-    display: none;
-}
-
-#tasks {
-    position: fixed;
-    top: 116px;                          /* below the brand header */
-    left: 20px;
-    width: 220px;
-    max-height: calc(100vh - 240px);
-    overflow-y: auto;
-    text-align: left;
-    z-index: 10;                         /* floats above the globe */
-    padding: 8px 10px;
-    background: rgba(10, 10, 15, 0.85);
-    border-radius: 6px;
-}
-
-/* Left branding dock: neon header + model subtitle */
-#brand-dock {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 5;
-    padding: 28px 20px;
+/* Left column: Tasks in glass style. 240 px wide, so it stays left of the nodes (x >= 280)
+   and above the dock (bottom: 110px). */
+#left-col {
+    position: fixed; top: 92px; left: 20px; bottom: 110px; width: 240px; z-index: 10;
+    display: flex; flex-direction: column; gap: 12px;
     pointer-events: none;
-    background: linear-gradient(90deg, rgba(4, 12, 22, 0.7), rgba(4, 12, 22, 0));
-    border-left: 3px solid #27d9ff;
-    box-shadow: inset 14px 0 28px -18px rgba(39, 217, 255, 0.55);
 }
-#brand-title {
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    white-space: nowrap;
-    color: #27d9ff;
-    text-shadow: 0 0 6px #27d9ff, 0 0 18px rgba(39, 217, 255, 0.7);
-}
-#brand-state { font-size: 11px; letter-spacing: 0.12em; color: #2bf5a0; text-shadow: 0 0 8px rgba(43, 245, 160, 0.8); }
-#brand-state.offline { color: #ff6b6b; text-shadow: 0 0 8px rgba(255, 107, 107, 0.8); }
-#brand-model {
-    margin-top: 8px;
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    color: #7fb8e6;
-}
-
-/* Right text overlay: no fill, just a blur, so the network nodes shine through the text like a hologram */
-#log-panel {
-    position: fixed;
-    top: 24px;
-    right: 24px;
-    bottom: 100px;
-    width: min(440px, 30vw);
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    padding: 16px 18px;
-    background: transparent;
+#left-col[hidden] { display: none; }
+#tasks {
+    pointer-events: auto;
+    padding: 12px 14px;
+    text-align: left;
+    background: rgba(6, 12, 20, 0.4);
     backdrop-filter: blur(10px) saturate(1.3);
     -webkit-backdrop-filter: blur(10px) saturate(1.3);
     border: 1px solid rgba(39, 217, 255, 0.28);
     border-radius: 12px;
     box-shadow: 0 0 30px rgba(39, 217, 255, 0.12), inset 0 0 24px rgba(39, 217, 255, 0.06);
-    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);   /* keeps text readable over the nodes */
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
 }
-#log-title {
-    margin-bottom: 10px;
-    font-size: 11px;
-    letter-spacing: 0.3em;
-    color: #27d9ff;
-    opacity: 0.8;
-}
-body:has(#report-panel:not([hidden])) #log-panel { display: none; }   /* the report takes the right side */
-
-@media (max-width: 900px) {
-    #app { margin-left: 0; margin-right: 0; }
-    #brand-dock { width: auto; right: 0; bottom: auto; padding: 14px 16px; background: none; box-shadow: none; }
-    #brand-title { font-size: 15px; }
-    #tasks { top: 70px; }
-    #log-panel { top: auto; left: 12px; right: 12px; bottom: 100px; width: auto; height: 28vh; }
-}
-
+#tasks { flex: 0 1 auto; max-height: 38%; overflow-y: auto; }
 /* Bottom control bar: dark glass, text input then five icon buttons */
 #control-bar {
     position: fixed;
-    left: 50%;
+    left: var(--mid-x);                  /* centre of the gap between the left column and the robot */
     bottom: 20px;
     transform: translateX(-50%);
     z-index: 10;
     display: flex;
     align-items: center;
     gap: 8px;
-    width: min(680px, 94vw);
+    width: min(680px, max(300px, calc(var(--mid-w) - 40px)));
     padding: 8px 10px;
     background: rgba(13, 22, 34, 0.55);
     border: 1px solid rgba(74, 158, 255, 0.25);
@@ -415,13 +331,13 @@ body:has(#report-panel:not([hidden])) #log-panel { display: none; }   /* the rep
     #bell.flash { animation: none; color: #ffd24a; }
 }
 
-/* Report panel: right side; the task panel (left), the HUD (center) and the control bar (bottom) stay clear */
+/* Report panel (voice market reports): in the gap between the left column and the robot, above the dock */
 #report-panel {
     position: fixed;
     top: 20px;
-    right: 20px;
-    bottom: 90px;
-    width: min(520px, 38vw);
+    left: calc(var(--col-r) + 20px);
+    bottom: 110px;
+    width: min(520px, max(240px, calc(var(--mid-w) - 40px)), max(180px, calc(var(--bubble-left, 100vw) - var(--col-r) - 36px)));   /* stays left of the speech bubble */
     display: flex;
     flex-direction: column;
     z-index: 10;
@@ -484,9 +400,9 @@ body:has(#report-panel:not([hidden])) #log-panel { display: none; }   /* the rep
 
 #hint {
     position: fixed;
-    bottom: 76px;
-    left: 0;
-    right: 0;
+    bottom: 112px;                       /* stacked above the model badge */
+    left: var(--col-r);                  /* moves with the dock */
+    width: var(--mid-w);
     z-index: 10;
     text-align: center;
     color: #4b5a6b;
@@ -559,3 +475,114 @@ body:has(#report-panel:not([hidden])) #log-panel { display: none; }   /* the rep
     font-size: 14px;
 }
 #broker-msg.err { color: #ff6b6b; }
+
+/* --- Robot: photo on the right edge. Style comes from data-power and data-state on #robot. --- */
+#robot {
+    position: fixed; right: 3vw; bottom: 3vh;
+    height: 92vh; aspect-ratio: 485 / 1203;
+    z-index: 5;
+    cursor: pointer;
+    filter: drop-shadow(0 0 14px rgba(79, 216, 255, 0.35));
+}
+#robot-img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+/* Nameplate: on the collar of the chest armor (about 20% down the photo), centred. */
+#robot-name {
+    position: absolute; left: 50%; top: 21.5%; transform: translate(-50%, -50%);
+    padding: 4px 18px; white-space: nowrap;
+    font: 700 clamp(18px, 2.6vh, 26px) 'Orbitron', 'Consolas', 'Courier New', monospace;
+    text-transform: uppercase; letter-spacing: 4px; color: #e6fdff;
+    background: rgba(10, 30, 45, 0.35);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border: 1px solid #00f3ff; border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.4), inset 0 0 8px rgba(0, 243, 255, 0.15);
+    text-shadow: 0 0 8px #00f3ff, 0 0 15px #00f3ff; pointer-events: none;
+}
+#robot[data-power="offline"] #robot-name { opacity: 0.6; }
+/* Chest core: a mechanical readout over the reactor window (50% across, 35% down). Fixed box, text centred both ways. */
+#robot-core {
+    position: absolute; left: 50%; top: 35%; transform: translate(-50%, -50%);
+    width: 44%; height: 11%; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    border-radius: 12px; border: 1px solid rgba(79, 216, 255, 0.55);
+    background: rgba(2, 8, 16, 0.78);
+    box-shadow: 0 0 16px rgba(79, 216, 255, 0.4), inset 0 0 12px rgba(79, 216, 255, 0.25);
+    text-align: center; pointer-events: none;
+}
+#robot-power { font: 900 clamp(20px, 3.6vh, 40px)/1 Consolas, 'Segoe UI', monospace; letter-spacing: 0.1em; text-align: center; color: #39ff88; text-shadow: 0 0 8px #39ff88; }
+#robot-sub { font: 900 clamp(14px, 2.4vh, 26px)/1 Consolas, 'Segoe UI', monospace; letter-spacing: 0.12em; text-align: center; color: #9fe8ff; text-shadow: 0 0 6px currentColor; }
+#robot-sub:empty { display: none; }
+/* Model badge: centred in the centre deck, directly above the control bar */
+#belt-pill {
+    position: fixed; bottom: 82px;
+    left: var(--mid-x); transform: translateX(-50%);
+    z-index: 10;
+    padding: 3px 12px; border-radius: 9px; white-space: nowrap;
+    background: rgba(13, 27, 42, 0.85); border: 1px solid rgba(79, 216, 255, 0.6); pointer-events: none;
+}
+#model-badge { font: 11px Consolas, 'Segoe UI', monospace; letter-spacing: 0.04em; color: #9fe8ff; }
+
+@keyframes robot-breathe { 0%, 100% { filter: drop-shadow(0 0 8px rgba(79, 216, 255, 0.25)); } 50% { filter: drop-shadow(0 0 20px rgba(79, 216, 255, 0.6)); } }
+
+/* states */
+#robot[data-state="idle"] { animation: robot-breathe 6s ease-in-out infinite; }
+#robot[data-state="speaking"] #robot-core { box-shadow: 0 0 22px #39ff88; }
+#robot[data-state="mic-off"] #robot-sub { color: #ffb020; }
+#robot[data-power="offline"] { opacity: 0.5; animation: none; }
+#robot[data-power="offline"] #robot-power { color: #b86a72; text-shadow: none; }
+
+/* plain-text status for narrow windows */
+#robot-plain { display: none; position: fixed; top: 14px; right: 14px; z-index: 6; font-size: 12px; letter-spacing: 0.16em; color: #39ff88; pointer-events: none; }
+#robot-plain[data-power="offline"] { color: #b86a72; }
+
+@media (max-width: 900px) {
+    :root { --robot-w: calc(92vh * 0.4 * 485 / 1203); }
+    #robot { height: calc(88vh * 0.4); }
+    #status { width: calc(92vh * 0.4 * 485 / 1203); }
+}
+@media (max-width: 700px) {
+    :root { --robot-w: 0px; }
+    #robot { display: none; }
+    #robot-plain { display: block; }
+    #status { left: 3vw; right: 3vw; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #robot, #robot * { animation: none !important; }
+}
+
+/* --- Speech bubble: latest reply, left of the whole robot, clear of its face and shoulders. Placed by layoutBubble() in main.js. --- */
+#bubble {
+    position: fixed; z-index: 7; pointer-events: none;
+    width: min(340px, 30vw);
+    padding: 10px 14px 12px;
+    text-align: left; color: #e6faff; font-size: 15px; line-height: 1.4;
+    background: rgba(6, 12, 20, 0.55);
+    backdrop-filter: blur(10px) saturate(1.3);
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    border: 1px solid rgba(39, 217, 255, 0.4);
+    border-radius: 12px;
+    box-shadow: 0 0 22px rgba(39, 217, 255, 0.18), inset 0 0 18px rgba(39, 217, 255, 0.06);
+    opacity: 0; visibility: hidden;        /* hidden, but it keeps its box so the layout can read it */
+    transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+}
+#bubble[data-show="1"] { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
+#bubble-label { margin-bottom: 4px; font-size: 10px; letter-spacing: 0.3em; color: #27d9ff; }
+#bubble-text {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
+    overflow: hidden; text-overflow: ellipsis;   /* three lines at most, then an ellipsis: never scrolled */
+    min-height: 2.8em;
+}
+#bubble[data-dots="1"] #bubble-text { display: none; }
+#bubble-dots { display: none; gap: 6px; padding: 8px 0 6px; }
+#bubble[data-dots="1"] #bubble-dots { display: flex; }
+#bubble-dots i { width: 7px; height: 7px; border-radius: 50%; background: #27d9ff; animation: bubble-dot 1.2s ease-in-out infinite; }
+#bubble-dots i:nth-child(2) { animation-delay: 0.2s; }
+#bubble-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bubble-dot   { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes bubble-pulse { 0%, 100% { border-color: rgba(39, 217, 255, 0.35); box-shadow: 0 0 14px rgba(39, 217, 255, 0.12), inset 0 0 18px rgba(39, 217, 255, 0.06); }
+                          50%      { border-color: rgba(79, 216, 255, 0.85); box-shadow: 0 0 28px rgba(39, 217, 255, 0.38), inset 0 0 18px rgba(39, 217, 255, 0.1); } }
+#bubble[data-speaking="1"] { animation: bubble-pulse 1.8s ease-in-out infinite; }
+@media (max-width: 700px) { #bubble { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+    #bubble { animation: none !important; }
+    #bubble-dots i { animation: none; opacity: 0.7; }
+}

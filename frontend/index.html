@@ -4,14 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RKMAerial</title>
+    <link rel="icon" type="image/x-icon" href="/static/jarvis.ico">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <canvas id="globe"></canvas>
-    <aside id="brand-dock">
-        <div id="brand-title">&#x1F916; J.A.R.V.I.S. <span id="brand-state">(ONLINE)</span></div>
-        <div id="brand-model">Model: Claude-Haiku-4.5</div>
-    </aside>
     <div id="app">
         <div id="orb-container">
             <div id="orb" class="offline">
@@ -56,17 +53,31 @@
             </div>
         </div>
         <div id="hud-label" class="offline">OFFLINE</div>
-        <div id="model-badge"></div>
-        <div id="status">Click the orb to speak</div>
+        <div id="status">Click the robot to speak</div>
     </div>
-    <section id="log-panel" aria-label="Conversation">
-        <div id="log-title">TRANSCRIPT</div>
-        <div id="transcript"></div>
-        <div id="sources"></div>
-    </section>
-    <div id="tasks">
-        <div id="tasks-title">Tasks (0)</div>
-        <ul id="tasks-list"></ul>
+    <div id="robot" data-power="offline" data-state="idle" role="img" aria-label="Assistant status">
+        <img id="robot-img" src="/static/robot.png" alt="" draggable="false">
+        <div id="robot-name">RKMAERIAL</div>
+        <div id="robot-core">
+            <span id="robot-power">OFFLINE</span>
+            <span id="robot-sub"></span>
+        </div>
+    </div>
+    <div id="robot-plain" data-power="offline"></div>
+    <div id="bubble" data-show="0" data-dots="0" data-speaking="0" aria-hidden="true">
+        <div id="bubble-label">RKMAERIAL</div>
+        <div id="bubble-text"></div>
+        <div id="bubble-dots"><i></i><i></i><i></i></div>
+    </div>
+    <div id="clock" aria-label="Clock">
+        <div id="clock-time"></div>
+        <div id="clock-date"></div>
+    </div>
+    <div id="left-col">
+        <div id="tasks">
+            <div id="tasks-title">Tasks (0)</div>
+            <ul id="tasks-list"></ul>
+        </div>
     </div>
     <div id="report-panel" hidden>
         <div id="report-bar">
@@ -80,7 +91,7 @@
         <button id="cdp-toggle" class="ctl" type="button" title="Check Chrome debug port 9222" aria-label="Check Chrome debug port 9222">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8"/></svg>
         </button>
-        <button id="layout-toggle" class="ctl" type="button" title="Show or hide the globe" aria-label="Show or hide the globe">
+        <button id="layout-toggle" class="ctl" type="button" title="Show or hide Tasks" aria-label="Show or hide Tasks">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
         </button>
         <button id="bell" class="ctl" type="button" title="Notifications" aria-label="Notifications">
@@ -95,7 +106,8 @@
             <span id="mic-label">Mic on</span>
         </button>
     </form>
-    <div id="hint">Drag the globe to rotate &middot; click a yellow node for its portfolio</div>
+    <div id="belt-pill" style="display:none"><span id="model-badge"></span></div>
+    <div id="hint">Drag a node - click a yellow node for its portfolio</div>
     <div id="broker-popup" hidden>
         <div id="broker-card">
             <div id="broker-bar">
@@ -106,7 +118,7 @@
         </div>
     </div>
     <script>
-    // Background globe: wireframe sphere with the Northbean hub and clickable brokerage nodes.
+    // Background node graph: the Market Scraper hub and clickable brokerage nodes.
     (() => {
         // Report HTML is cleaned server-side and shown only in an iframe with an empty sandbox and an inline-styles-only CSP.
         const REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'";
@@ -121,70 +133,158 @@
         const popup = document.getElementById('broker-popup');
         const popupTitle = document.getElementById('broker-title');
         const popupBody = document.getElementById('broker-body');
-        let W = 0, H = 0, R = 0, RX = 0, CX = 0, CY = 0, dpr = 1;
+        let W = 0, H = 0, dpr = 1;
         let nodes = [], links = [], byId = {};
-        let yaw = 0, pitch = -0.35;
-        let dragging = false, lastX = 0, lastY = 0, moved = 0;
         let hovered = null, busy = false;
-        const AUTO_SPIN = 0.0025;      // radians per frame
-        const NODE_ORBIT = 1.3;        // vertical orbit of the child nodes, as a multiple of the wireframe radius
-        const NODE_STRETCH = 1.8;      // horizontal orbit is this much wider, so the links run long across the screen
-        const ELASTIC = 0.14;          // how far (fraction of the orbit) nodes breathe in and out
         const STRAND_AMP = 11;         // px: how far the two DNA strands swing from the link axis
-        const TOP_RESERVE = 20, BOTTOM_RESERVE = 110;   // keep clear of the task panel edge and the control bar + hint
+        // --- Layout and motion tuning ---
+        const DRIFT = 0.002;     // random wander acceleration (px/frame^2). Lower = calmer. Off under reduced motion.
+        const SPRING = 0.0012;   // pull along a link toward LINK_LEN. Higher = stiffer links.
+        const REPEL = 0.15;      // soft push between nearby nodes (starts at 1.5 x MIN_GAP). Higher = more breathing room.
+        const LINK_LEN = 200;    // px: resting length of every link.
+        const MIN_GAP = 120;     // px: nodes are never left closer than this, center to center.
+        const DAMPING = 0.94;    // velocity kept per frame. Lower = settles faster.
+        const PARALLAX = [28, 18];   // px of mouse-driven shift at full depth (x, y)
+        // Free area: x from 280 (just right of the left column) to 40 px left of the robot (the whole space left of it); y from 130 to height minus 170.
+        const AREA = { left: 280, top: 130, robotPad: 40, bottomPad: 170 };
+        const rm = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let reduced = rm.matches;
+        rm.addEventListener('change', e => { reduced = e.matches; });
+        let area = { l: 0, r: 0, t: 0, b: 0 };   // free box nodes may live in
+        let mx = 0, my = 0, tmx = 0, tmy = 0;    // smoothed and target mouse position, -0.5..0.5
+        let drag = null, downX = 0, downY = 0, moved = 0, lastT = 0;
+        const bubbleEl = document.getElementById('bubble');
+        const robotEl = document.getElementById('robot');
+        let exclude = null;   // speech-bubble keep-out zone, read from the DOM every frame
+        const isClickable = n => n.type === 'broker' || n.type === 'market-account';
+        const NODE_STYLE = {   // r: radius; color: glow, text: label
+            hub: { r: 12, color: '#27d9ff', text: '#bff4ff', font: '600 14px' },
+            pipeline: { r: 9, color: '#27d9ff', text: '#bff4ff', font: '12px' },
+            broker: { r: 11, color: '#ffd24a', text: '#ffe9a6', font: '13px' },
+        };
+        NODE_STYLE['market-account'] = NODE_STYLE.broker;
+        const styleOf = n => NODE_STYLE[n.type] || NODE_STYLE.broker;
 
         function resize() {
+            const old = area;
             dpr = window.devicePixelRatio || 1;
             W = window.innerWidth; H = window.innerHeight;
             canvas.width = W * dpr; canvas.height = H * dpr;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            // Centre the globe in the band between the top margin and the control bar, and size it so the orbiting nodes and labels fit.
-            const bandH = Math.max(200, H - TOP_RESERVE - BOTTOM_RESERVE);
-            CY = TOP_RESERVE + bandH / 2;
-            const app = document.getElementById('app').getBoundingClientRect();
-            CX = app.left + app.width / 2;      // centre on the orb, between the brand dock and the log panel
-            R = Math.min(Math.min(W, H) * 0.4, (bandH / 2 - 24) / (NODE_ORBIT * (1 + ELASTIC) * 1.15));
-            RX = Math.min(R * NODE_ORBIT * NODE_STRETCH, (Math.min(CX, W - CX) - 40) / ((1 + ELASTIC) * 1.15));   // horizontal node orbit, kept on screen
+            const rb = robotEl.getBoundingClientRect();   // zero-sized when the robot is hidden (< 700 px)
+            const freeR = (rb.width ? rb.left : W) - AREA.robotPad;
+            area = { l: AREA.left, r: Math.max(AREA.left + 200, freeR),
+                     t: AREA.top, b: Math.max(AREA.top + 200, H - AREA.bottomPad) };
+            if (old.r > old.l) nodes.forEach(n => {   // keep each node at the same relative spot in the new box
+                n.sx = area.l + (n.sx - old.l) / (old.r - old.l) * (area.r - area.l);
+                n.sy = area.t + (n.sy - old.t) / (old.b - old.t) * (area.b - area.t);
+            });
         }
         window.addEventListener('resize', resize);
         resize();
 
-        // Rotate a unit-sphere point by yaw (around Y) then pitch (around X), and project it.
-        function project(x, y, z, scale, sx = 1) {
-            const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-            const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
-            const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
-            const persp = 1 / (1 - z2 * 0.25);
-            return { x: CX + x1 * scale * sx * persp, y: CY - y2 * scale * persp, z: z2, p: persp };
-        }
-        function spherePoint(latDeg, lonDeg) {
-            const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180;
-            return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)];
+        window.addEventListener('pointermove', ev => { tmx = ev.clientX / W - 0.5; tmy = ev.clientY / H - 0.5; });
+
+        // Label size per node, for the collision boxes and the dark label backing.
+        function measure(n) {
+            const s = styleOf(n);
+            ctx.font = s.font + " 'Segoe UI', sans-serif";
+            n.lw = ctx.measureText(n.label).width + 12;          // label backing width
+            n.hw = Math.max(n.lw / 2, s.r + 6);                  // half width of node + label box
+            n.hh = s.r + 14;                                     // half height; box centre sits 10 px below the node
         }
 
-        function drawPolyline(points, color, alphaFront, alphaBack) {
-            for (let i = 1; i < points.length; i++) {
-                const a = points[i - 1], b = points[i];
-                ctx.strokeStyle = color;
-                ctx.globalAlpha = (a.z + b.z) / 2 >= 0 ? alphaFront : alphaBack;
-                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        // The whole cluster is centred horizontally in the free area (left of the robot). The hub is its left end. The pipeline is 220 px from it, up and to the right (toward the robot);
+        // the brokers sit on a 120-degree arc 230 px beyond the pipeline (adjacent brokers 230 px apart).
+        // The cluster shrinks in small windows and shifts only as far as needed to stay inside the area.
+        function place(list) {
+            const aw = area.r - area.l, ah = area.b - area.t;
+            const hub = list.find(n => n.type === 'hub'), pipe = list.find(n => n.type === 'pipeline');
+            const rest = list.filter(n => n !== hub && n !== pipe);
+            const put = (n, x, y) => { n.sx = Math.max(area.l, Math.min(area.r, x)); n.sy = Math.max(area.t, Math.min(area.b, y)); };
+            const PHI = -35 * Math.PI / 180;
+            const pdx = pipe ? 220 * Math.cos(PHI) : 0, pdy = pipe ? 220 * Math.sin(PHI) : 0;   // no pipeline: brokers fan out from the hub
+            const off = new Map();                    // node -> [dx, dy] from the hub at full size
+            if (pipe) off.set(pipe, [pdx, pdy]);
+            rest.forEach((n, i) => {
+                const a = PHI + (rest.length > 1 ? (i / (rest.length - 1) - 0.5) * Math.PI * 2 / 3 : 0);
+                off.set(n, [pdx + 230 * Math.cos(a), pdy + 230 * Math.sin(a)]);
+            });
+            const pts = [[0, 0], ...off.values()];
+            const minX = Math.min(...pts.map(p => p[0])), maxX = Math.max(...pts.map(p => p[0]));
+            const minY = Math.min(...pts.map(p => p[1])), maxY = Math.max(...pts.map(p => p[1]));
+            const s = Math.max(0.6, Math.min(1, aw / (maxX - minX + 40), ah / (maxY - minY + 40)));
+            const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+            const hx = clamp(area.l + aw / 2 - (minX + maxX) / 2 * s, area.l - minX * s, area.r - maxX * s);   // cluster box centred horizontally
+            const hy = clamp((area.t + area.b) / 2, area.t - minY * s, area.b - maxY * s);
+            if (hub) put(hub, hx, hy);
+            off.forEach(([dx, dy], n) => put(n, hx + dx * s, hy + dy * s));
+            list.forEach((n, i) => { n.vx = n.vy = 0; n.z = Math.sin(i * 2.7); measure(n); });
+        }
+
+        // Push two nodes apart if their centres are closer than MIN_GAP or their label boxes collide.
+        // A dragged node never moves; the other one yields.
+        function separate(a, b) {
+            const dx = b.sx - a.sx, dy = b.sy - a.sy, d = Math.hypot(dx, dy) || 0.01;
+            const gap = Math.max(0, MIN_GAP - d);
+            let gx = dx / d * gap, gy = dy / d * gap;
+            const ox = a.hw + b.hw + 8 - Math.abs(dx), oy = a.hh + b.hh + 8 - Math.abs(dy);
+            if (ox > 0 && oy > 0) {
+                if (ox < oy) { if (ox > Math.abs(gx)) gx = Math.sign(dx || 1) * ox; }
+                else if (oy > Math.abs(gy)) gy = Math.sign(dy || 1) * oy;
+            }
+            if (!gx && !gy) return;
+            const wa = a === drag ? 0 : 1, wb = b === drag ? 0 : 1, w = wa + wb;
+            if (!w) return;
+            a.sx -= gx * 0.35 * wa / w; a.sy -= gy * 0.35 * wa / w;
+            b.sx += gx * 0.35 * wb / w; b.sy += gy * 0.35 * wb / w;
+        }
+
+        // Nodes never sit under the speech bubble (the box is fixed-size, so it does not twitch while text types).
+        function keepOut(n) {
+            if (!exclude) return;
+            if (n.sy + 36 > exclude.t && n.sy - 24 < exclude.b && n.sx + n.hw > exclude.l) {
+                n.sx = exclude.l - n.hw;
+                if (n.vx > 0) n.vx = 0;
             }
         }
 
-        function drawWireframe() {
-            ctx.lineWidth = 1;
-            ctx.shadowColor = '#27d9ff'; ctx.shadowBlur = 6;
-            for (let lat = -60; lat <= 60; lat += 30) {
-                const pts = [];
-                for (let lon = 0; lon <= 360; lon += 6) pts.push(project(...spherePoint(lat, lon), R));
-                drawPolyline(pts, '#27d9ff', 0.55, 0.12);
+        // Gentle physics: wander (off under reduced motion), springs along links, soft repulsion, separation, soft walls.
+        function step(t, k) {
+            const rest = LINK_LEN;
+            const cx = (area.l + area.r) / 2, cy = (area.t + area.b) / 2;
+            nodes.forEach((n, i) => {
+                n.ax = (cx - n.sx) * 0.0001; n.ay = (cy - n.sy) * 0.0001;
+                if (!reduced) { n.ax += DRIFT * Math.sin(t / 3100 + i * 1.7); n.ay += DRIFT * Math.cos(t / 2700 + i * 2.3); }
+            });
+            for (const l of links) {
+                const a = byId[l.source], b = byId[l.target];
+                if (!a || !b) continue;
+                const dx = b.sx - a.sx, dy = b.sy - a.sy, d = Math.hypot(dx, dy) || 1, f = SPRING * (d - rest);
+                a.ax += f * dx / d; a.ay += f * dy / d; b.ax -= f * dx / d; b.ay -= f * dy / d;
             }
-            for (let lon = 0; lon < 360; lon += 30) {
-                const pts = [];
-                for (let lat = -90; lat <= 90; lat += 6) pts.push(project(...spherePoint(lat, lon), R));
-                drawPolyline(pts, '#27d9ff', 0.55, 0.12);
+            const range = MIN_GAP * 1.5;
+            for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+                const a = nodes[i], b = nodes[j];
+                const dx = b.sx - a.sx, dy = b.sy - a.sy, d = Math.hypot(dx, dy);
+                if (d >= range) continue;
+                const s = (1 - d / range) * REPEL, ux = d ? dx / d : 1, uy = d ? dy / d : 0;
+                a.ax -= s * ux; a.ay -= s * uy; b.ax += s * ux; b.ay += s * uy;
             }
-            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+            for (const n of nodes) {
+                if (n === drag) continue;
+                n.vx = (n.vx + n.ax * k) * Math.pow(DAMPING, k); n.vy = (n.vy + n.ay * k) * Math.pow(DAMPING, k);
+                n.sx += n.vx * k; n.sy += n.vy * k;
+            }
+            for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) separate(nodes[i], nodes[j]);
+            for (const n of nodes) {   // soft walls
+                if (n === drag) continue;
+                if (n.sx < area.l) { n.sx = area.l; n.vx = Math.abs(n.vx) * 0.3; }
+                if (n.sx > area.r) { n.sx = area.r; n.vx = -Math.abs(n.vx) * 0.3; }
+                if (n.sy < area.t) { n.sy = area.t; n.vy = Math.abs(n.vy) * 0.3; }
+                if (n.sy > area.b) { n.sy = area.b; n.vy = -Math.abs(n.vy) * 0.3; }
+                keepOut(n);
+            }
         }
 
         function glowDot(x, y, r, color, glow) {
@@ -199,37 +299,33 @@
         function frame(t) {
             requestAnimationFrame(frame);
             if (canvas.hidden) return;
-            if (!dragging && !hovered) yaw += AUTO_SPIN;
+            const k = Math.min(32, t - lastT || 16.7) / 16.7; lastT = t;
             ctx.clearRect(0, 0, W, H);
+            const bb = bubbleEl.getBoundingClientRect();
+            exclude = bb.width ? { l: bb.left - 20, t: bb.top - 20, b: bb.top + 120 + 20 } : null;   // 120 px = three lines
+            step(t, k);
+            mx += (tmx - mx) * 0.05 * k; my += (tmy - my) * 0.05 * k;
+            const par = reduced ? 0 : 1;
+            for (const n of nodes) { n.x = n.sx + mx * PARALLAX[0] * n.z * par; n.y = n.sy + my * PARALLAX[1] * n.z * par; n.p = 1 + 0.1 * n.z; }
+            const tt = reduced ? 0 : t;   // frozen link wave and pulse under reduced motion
 
-            const hub = project(0, 0, 0, R);
-            nodes.forEach((n, i) => {
-                if (n.type === 'hub') { Object.assign(n, hub, { r: 16 }); return; }
-                // Elastic drift: the node breathes in and out and wanders a few degrees, so it never sits still.
-                const k = 1 + ELASTIC * Math.sin(t / 1900 + i * 2.1);
-                const lat = n.lat + 5 * Math.sin(t / 2600 + i * 1.7), lon = n.lon + 7 * Math.sin(t / 3100 + i * 0.9);
-                Object.assign(n, project(...spherePoint(lat, lon), R * NODE_ORBIT * k, RX / (R * NODE_ORBIT)), { r: 11 });
-            });
-
-            drawWireframe();
-
-            // Links: two phase-shifted strands twisting around the hub-to-child axis, like a DNA helix; they drift over time.
+            // Links: two phase-shifted strands twisting around the node-to-node axis, like a DNA helix.
             ctx.lineWidth = 1.4;
-            ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 8;
-            ctx.strokeStyle = '#ffd24a';
             links.forEach((l, li) => {
                 const a = byId[l.source], b = byId[l.target];
                 if (!a || !b) return;
+                const col = isClickable(b) ? '#ffd24a' : '#27d9ff';
+                ctx.shadowColor = col; ctx.shadowBlur = 8; ctx.strokeStyle = col;
                 const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
                 const nx = -dy / len, ny = dx / len;
                 const turns = Math.max(2, len / 120);
-                const sag = 0.12 * len * Math.sin(t / 2200 + li * 1.3);   // the whole strand bows slowly
-                ctx.globalAlpha = b.z >= 0 ? 0.8 : 0.25;
+                const sag = 0.12 * len * Math.sin(tt / 2200 + li * 1.3);   // the whole strand bows slowly
+                ctx.globalAlpha = 0.45 + 0.3 * (a.z + b.z + 2) / 4;
                 for (const dir of [1, -1]) {
                     ctx.beginPath();
                     for (let s = 0; s <= 40; s++) {
                         const u = s / 40, env = Math.sin(u * Math.PI);
-                        const off = env * (STRAND_AMP * dir * Math.sin(u * turns * Math.PI * 2 + t / 700 + li) + sag);
+                        const off = env * (STRAND_AMP * dir * Math.sin(u * turns * Math.PI * 2 + tt / 700 + li) + sag);
                         const px = a.x + dx * u + nx * off, py = a.y + dy * u + ny * off;
                         if (s) ctx.lineTo(px, py); else ctx.moveTo(px, py);
                     }
@@ -238,19 +334,23 @@
             });
             ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
-            // Nodes, far to near
-            const pulse = 1 + 0.12 * Math.sin(t / 400);
-            for (const n of [...nodes].sort((a, b) => a.z - b.z)) {
-                const back = n.type !== 'hub' && n.z < 0;
-                ctx.globalAlpha = back ? 0.45 : 1;
-                const size = n.r * n.p;
-                if (n.type === 'hub') glowDot(n.x, n.y, size, '#27d9ff', size * 3.2 * pulse);
-                else glowDot(n.x, n.y, size, '#ffd24a', size * (n === hovered ? 3.4 : 2.6));
-                ctx.globalAlpha = back ? 0.5 : 1;
-                ctx.fillStyle = n.type === 'hub' ? '#bff4ff' : '#ffe9a6';
-                ctx.font = (n.type === 'hub' ? '600 15px' : '13px') + " 'Segoe UI', sans-serif";
-                ctx.textAlign = 'center';
-                if (n.type !== 'hub') ctx.fillText(n.label, n.x, n.y + size + 18);   // the hub sits behind the HUD orb
+            const pulse = 1 + 0.12 * Math.sin(tt / 400);
+            const order = [...nodes].sort((a, b) => a.z - b.z);
+            for (const n of order) {   // pass 1: glow dots
+                const s = styleOf(n), size = s.r * n.p;
+                ctx.globalAlpha = 0.7 + 0.3 * (n.z + 1) / 2;
+                glowDot(n.x, n.y, size, s.color, size * (n.type === 'hub' ? 3.2 * pulse : n === hovered || n === drag ? 3.4 : 2.6));
+            }
+            ctx.textAlign = 'center';
+            for (const n of order) {   // pass 2: labels (hub included) on a faint dark backing, above all dots and links
+                const s = styleOf(n), ly = n.y + s.r * n.p + 18;
+                ctx.globalAlpha = 0.7 + 0.3 * (n.z + 1) / 2;
+                ctx.fillStyle = 'rgba(6, 12, 20, 0.6)';
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(n.x - n.lw / 2, ly - 13, n.lw, 19, 5); else ctx.rect(n.x - n.lw / 2, ly - 13, n.lw, 19);
+                ctx.fill();
+                ctx.fillStyle = s.text; ctx.font = s.font + " 'Segoe UI', sans-serif";
+                ctx.fillText(n.label, n.x, ly);
             }
             ctx.globalAlpha = 1;
         }
@@ -258,40 +358,47 @@
         fetch('/graph/data').then(r => r.json()).then(d => {
             nodes = d.nodes; links = d.links;
             byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+            place(nodes);
         }).catch(() => {});
         requestAnimationFrame(frame);
 
-        function pick(ev) {
-            const x = ev.clientX, y = ev.clientY;
+        // Nearest node under the pointer (any node can be dragged; only brokerage nodes open a report).
+        function hit(ev) {
             let best = null, bestD = Infinity;
             for (const n of nodes) {
-                if (n.type !== 'broker' || n.x === undefined) continue;
-                const d = Math.hypot(n.x - x, n.y - y);
-                if (d < Math.max(18, n.r * n.p * 1.8) && d < bestD) { best = n; bestD = d; }
+                if (n.x === undefined) continue;
+                const d = Math.hypot(n.x - ev.clientX, n.y - ev.clientY);
+                if (d < Math.max(18, styleOf(n).r * n.p * 1.8) && d < bestD) { best = n; bestD = d; }
             }
             return best;
         }
 
         canvas.addEventListener('pointerdown', ev => {
-            dragging = true; moved = 0; lastX = ev.clientX; lastY = ev.clientY;
+            const n = hit(ev);
+            if (!n) return;
+            drag = n; downX = ev.clientX; downY = ev.clientY; moved = 0; n.vx = n.vy = 0;
             canvas.setPointerCapture(ev.pointerId); canvas.classList.add('drag');
         });
         canvas.addEventListener('pointermove', ev => {
-            if (dragging) {
-                const dx = ev.clientX - lastX, dy = ev.clientY - lastY;
-                moved += Math.abs(dx) + Math.abs(dy);
-                yaw += dx * 0.006;
-                pitch = Math.max(-1.2, Math.min(1.2, pitch + dy * 0.006));
-                lastX = ev.clientX; lastY = ev.clientY;
-            } else {
-                hovered = pick(ev);
-                canvas.classList.toggle('hover', !!hovered);
+            if (drag) {
+                moved = Math.max(moved, Math.hypot(ev.clientX - downX, ev.clientY - downY));
+                const par = reduced ? 0 : 1;
+                drag.sx = Math.max(area.l, Math.min(area.r, ev.clientX - mx * PARALLAX[0] * drag.z * par));
+                drag.sy = Math.max(area.t, Math.min(area.b, ev.clientY - my * PARALLAX[1] * drag.z * par));
+                keepOut(drag);
+                return;
             }
+            const n = hit(ev);
+            hovered = n && isClickable(n) ? n : null;
+            canvas.classList.toggle('hover', !!hovered);
+            canvas.classList.toggle('grab', !!n && !hovered);
         });
-        canvas.addEventListener('pointerup', ev => {
-            dragging = false; canvas.classList.remove('drag');
-            if (moved < 5) { const n = pick(ev); if (n) openNode(n); }
+        canvas.addEventListener('pointerup', () => {
+            if (!drag) return;
+            const n = drag; drag = null; canvas.classList.remove('drag');
+            if (moved < 5 && isClickable(n)) openNode(n);   // a click, not a drag
         });
+        canvas.addEventListener('pointercancel', () => { drag = null; canvas.classList.remove('drag'); });
         canvas.addEventListener('pointerleave', () => { hovered = null; });
 
         function showMessage(text, isError) {
