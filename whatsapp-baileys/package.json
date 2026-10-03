@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-whatsapp-baileys-bridge",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Baileys (direct WhatsApp protocol) sidecar for Jarvis; same /send and /wa/incoming interface as ../whatsapp",
+  "type": "module",
+  "main": "bridge.mjs",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.0.0",
+    "qrcode": "^1.5.4"
+  }
+}

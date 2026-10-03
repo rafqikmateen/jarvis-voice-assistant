@@ -4,6 +4,8 @@
   "elevenlabs_voice_id": "YOUR_VOICE_ID",
   "tavily_api_key": "",
   "whatsapp_enabled": false,
+  "whatsapp_briefing_number": "",
+  "whatsapp_briefing_invite": "",
   "user_name": "YOUR_NAME",
   "user_address": "Sir",
   "city": "YOUR_CITY",

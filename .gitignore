@@ -10,5 +10,8 @@ tavily-usage.json.tmp
 whatsapp/node_modules/
 whatsapp/.wwebjs_auth/
 whatsapp/.wwebjs_cache/
+whatsapp-baileys/auth_state/
+whatsapp-baileys/node_modules/
 known-devices.json
 maintenance-state.json
+briefing_state.json
