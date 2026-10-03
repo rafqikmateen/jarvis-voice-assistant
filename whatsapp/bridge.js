@@ -1,5 +1,6 @@
 // WhatsApp Web bridge for Jarvis. Started by the Python server when "whatsapp_enabled" is true in config.json.
 // Incoming 1:1 messages are POSTed to the server; replies arrive on a loopback-only HTTP port and need the shared token.
+const fs = require('fs');
 const http = require('http');
 const qrcode = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -9,7 +10,11 @@ const PORT = parseInt(process.env.JARVIS_WA_PORT || '3101', 10);
 const JARVIS = process.env.JARVIS_URL || 'http://127.0.0.1:8340';
 if (!TOKEN) { console.error('JARVIS_WA_TOKEN missing; refusing to start.'); process.exit(1); }
 
-const client = new Client({ authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }), puppeteer: { headless: true, args: ['--no-sandbox'] } });
+// puppeteer's own Chromium download is blocked by npm here, so use the installed Google Chrome.
+const CHROME = process.env.JARVIS_CHROME || ['C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'].find(p => fs.existsSync(p));
+const client = new Client({ authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),
+    puppeteer: { headless: true, args: ['--no-sandbox'], ...(CHROME ? { executablePath: CHROME } : {}) } });
 let ready = false;
 
 client.on('qr', qr => qrcode.generate(qr, { small: true }));
